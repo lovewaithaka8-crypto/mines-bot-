@@ -1,0 +1,6 @@
+{
+  "name": "BGR8 Mines Signal & Analysis Platform",
+  "description": "AI-powered Mines game statistical signal generator, 5x5 board analyzer, out-of-sample performance tracker, and modular BGR8 integration platform.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
