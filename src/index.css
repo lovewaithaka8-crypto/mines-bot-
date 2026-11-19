@@ -20,6 +20,12 @@
 }
 .surface-panel { background: rgba(10,17,28,.84); backdrop-filter: blur(22px); border-color: rgba(255,255,255,.07) !important; box-shadow: 0 12px 42px rgba(0,0,0,.18); }
 .surface-card { background: rgba(16,26,39,.78); backdrop-filter: blur(18px); border-color: rgba(255,255,255,.07) !important; }
+.glass-panel { background: rgba(10,17,28,.84); backdrop-filter: blur(22px); border: 1px solid rgba(255,255,255,.08); box-shadow: 0 12px 42px rgba(0,0,0,.22); }
+.glass-card { background: rgba(16,26,39,.78); backdrop-filter: blur(18px); border: 1px solid rgba(255,255,255,.08); }
+.midnight-workspace-canvas, .midnight-emerald-canvas { background-color: #050A12; background-image: radial-gradient(ellipse at 15% 0%, rgba(0,245,160,.055), transparent 35%), radial-gradient(ellipse at 85% 12%, rgba(155,114,255,.06), transparent 36%); }
+.emerald-glow { box-shadow: 0 0 22px rgba(0,217,139,.24); }
+.emerald-icon-glow { filter: drop-shadow(0 0 8px rgba(0,217,139,.55)); }
+.purple-highlight { box-shadow: 0 0 28px rgba(139,92,246,.14); }
 .tile-cell { contain: layout style paint; touch-action: manipulation; }
 .tile-unopened { background: linear-gradient(145deg,#12F5A2 0%,#08B979 100%); box-shadow: inset 0 1px 0 rgba(0,255,136,.42),0 3px 0 #07553D,0 0 14px rgba(0,255,136,.08); }
 .tile-unopened:hover { background: linear-gradient(145deg,#5CFFC0 0%,#12D88C 100%); box-shadow: inset 0 1px 0 rgba(0,255,136,.55),0 3px 0 #07553D,0 0 20px rgba(0,255,136,.15); }

@@ -1,34 +1,32 @@
 import { useMemo, useState } from 'react';
 import {
-  Sparkles,
-  RefreshCw,
-  Link2,
+  Activity,
+  ArrowRight,
+  BarChart3,
   CheckCircle2,
-  XCircle,
-  Loader2,
-  ShieldAlert,
-  LockKeyhole,
-  Trash2,
-  ClipboardCheck,
-  Eye,
-  Download,
-  Search,
   ChevronLeft,
   ChevronRight,
-  ArrowRight,
+  ClipboardCheck,
+  Clock,
+  Download,
+  Eye,
+  Globe,
+  Grid,
+  Loader2,
+  RefreshCw,
+  Search,
   Sliders,
+  Sparkles,
+  Trash2,
 } from 'lucide-react';
 import type {
   AnalysisEngineMode,
+  AnalysisWindowSetting,
   GenerationMode,
-  IntegrationMode,
-  PlatformConfigsMap,
-  PlatformId,
-  PlatformIntegrationConfig,
   SignalRecord,
   UserSettings,
+  WorkspacePage,
 } from '../types/mines.ts';
-import type { WorkspacePage } from '../components/PublicHomepage.tsx';
 import {
   calcJointSurvivalProbability,
   calcSingleTileSafety,
@@ -38,17 +36,11 @@ import {
 import {
   computeEmpiricalTileMatrix,
   computePerformanceMetrics,
+  formatWindowLabel,
 } from './performanceTrackingModule.ts';
 import {
-  getPlatformMeta,
-  parsePlatformSnapshot,
-  probePlatformConnection,
-  validatePlatformUrl,
-  type PlatformProbeResult,
-} from './platformBridgeModule.ts';
-import {
-  exportSignalsAsJson,
   exportSignalsAsCsv,
+  exportSignalsAsJson,
 } from './databaseModule.ts';
 import { playSignalGeneratedSound } from '../services/soundEffects.ts';
 import { performanceMonitor } from '../services/performanceMonitor.ts';
@@ -57,39 +49,117 @@ import { performanceMonitor } from '../services/performanceMonitor.ts';
 
 export function OverviewView({
   signals,
-  platformConfigs,
-  selectedPlatform,
+  connectedPlatformsCount,
   onNavigate,
 }: {
   signals: SignalRecord[];
-  platformConfigs: PlatformConfigsMap;
-  selectedPlatform: PlatformId;
+  connectedPlatformsCount: number;
   onNavigate: (page: WorkspacePage) => void;
 }) {
   const metrics = useMemo(() => computePerformanceMetrics(signals), [signals]);
 
   return (
-    <div className="flex flex-col gap-6">
-      <section className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="surface-card rounded-2xl border border-[#00FF88]/20 p-5">
-          <div className="text-xs text-[#9BB2D8]">Recorded Signals</div>
-          <div className="mt-1.5 text-2xl font-bold text-[#F3F7FF] tabular-nums">{metrics.totalSignals}</div>
-          <div className="mt-1 text-xs text-[#9BB2D8] tabular-nums">{metrics.evaluatedRounds} evaluated · {metrics.pendingRounds} active</div>
+    <div className="flex flex-col gap-5">
+      <section className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="glass-card rounded-2xl p-4">
+          <div className="flex items-center justify-between text-xs text-[#91A0B5]">
+            <span>Stored Signals</span>
+            <Activity className="w-4 h-4 text-[#00D98B]" aria-hidden="true" />
+          </div>
+          <div className="mt-2 text-2xl font-bold text-[#F4F7FC] tabular-nums">
+            {metrics.totalSignals}
+          </div>
+          <div className="mt-1 text-[11px] text-[#91A0B5] tabular-nums">
+            {metrics.evaluatedRounds} evaluated · {metrics.pendingRounds} active
+          </div>
         </div>
-        <div className="surface-card rounded-2xl border border-[#8B5CF6]/25 p-5">
-          <div className="text-xs text-[#9BB2D8]">Measured Outcomes</div>
-          <div className="mt-1.5 text-2xl font-bold text-[#00FF88] tabular-nums">{metrics.measuredSafeRatePct === null ? '—' : `${metrics.measuredSafeRatePct}%`}</div>
-          <div className="mt-1 text-xs text-[#9BB2D8]">{metrics.totalEvaluatedPicks === 0 ? 'No verified outcomes recorded yet' : `${metrics.correctRecommendations} safe / ${metrics.incorrectRecommendations} mine`}</div>
+
+        <div className="glass-card rounded-2xl p-4">
+          <div className="flex items-center justify-between text-xs text-[#91A0B5]">
+            <span>7h Window</span>
+            <Clock className="w-4 h-4 text-[#38BDF8]" aria-hidden="true" />
+          </div>
+          <div className="mt-2 text-2xl font-bold text-[#38BDF8] tabular-nums">
+            {metrics.sevenHourSignals}
+          </div>
+          <div className="mt-1 text-[11px] text-[#91A0B5] tabular-nums">
+            {metrics.sevenHourAccuracyPct === null
+              ? 'No evaluated picks yet'
+              : `${metrics.sevenHourAccuracyPct}% verified safe`}
+          </div>
+        </div>
+
+        <div className="glass-card rounded-2xl p-4">
+          <div className="flex items-center justify-between text-xs text-[#91A0B5]">
+            <span>Measured Accuracy</span>
+            <CheckCircle2 className="w-4 h-4 text-[#00D98B]" aria-hidden="true" />
+          </div>
+          <div className="mt-2 text-2xl font-bold text-[#00D98B] tabular-nums">
+            {metrics.measuredSafeRatePct === null
+              ? '—'
+              : `${metrics.measuredSafeRatePct}%`}
+          </div>
+          <div className="mt-1 text-[11px] text-[#91A0B5]">
+            {metrics.totalEvaluatedPicks === 0
+              ? 'Record outcomes to score'
+              : `${metrics.correctRecommendations} safe / ${metrics.incorrectRecommendations} mine`}
+          </div>
+        </div>
+
+        <div className="glass-card rounded-2xl p-4">
+          <div className="flex items-center justify-between text-xs text-[#91A0B5]">
+            <span>Platforms</span>
+            <Globe className="w-4 h-4 text-[#8B5CF6]" aria-hidden="true" />
+          </div>
+          <div className="mt-2 text-2xl font-bold text-[#F4F7FC] tabular-nums">
+            {connectedPlatformsCount}
+          </div>
+          <div className="mt-1 text-[11px] text-[#91A0B5]">
+            Connected feeds
+          </div>
         </div>
       </section>
-      <section className="surface-panel rounded-2xl border border-[#00FF88]/20 p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-base font-bold text-[#F3F7FF]">Mines Analyzer <span className="text-[#00FF88]">Ready</span></h2>
-          <p className="text-xs sm:text-sm text-[#9BB2D8] mt-1">Analyze a 5 × 5 board, configure traps, and record outcomes to review your history.</p>
+
+      <section className="glass-panel rounded-2xl p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="w-11 h-11 rounded-xl bg-[#00D98B]/15 border border-[#00D98B]/35 flex items-center justify-center shrink-0">
+            <Grid className="w-5 h-5 text-[#00D98B]" aria-hidden="true" />
+          </div>
+          <div>
+            <h2 className="text-base font-bold text-[#F4F7FC]">
+              Mines Analyzer <span className="text-[#00D98B]">Ready</span>
+            </h2>
+            <p className="text-xs text-[#91A0B5]">
+              5 × 5 statistical grid, 7-hour rolling window, and verified outcome logging.
+            </p>
+          </div>
         </div>
-        <div className="flex flex-wrap gap-3 shrink-0">
-          <button type="button" onClick={() => onNavigate('analyzer')} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#00FF88] hover:bg-emerald-400 text-[#06101D] text-xs font-semibold"><span>Open Mines Analyzer</span><ArrowRight className="w-4 h-4" aria-hidden="true" /></button>
-          <button type="button" onClick={() => onNavigate('history')} className="px-4 py-2.5 rounded-xl border border-[#8B5CF6]/35 text-[#F3F7FF] text-xs font-semibold hover:border-[#00FF88]">Round History</button>
+
+        <div className="flex flex-wrap gap-2.5 shrink-0">
+          <button
+            type="button"
+            onClick={() => onNavigate('analyzer')}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#00D98B] hover:bg-[#00c47d] text-[#050A12] text-xs font-bold emerald-glow transition-colors"
+          >
+            <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
+            <span>Open Mines</span>
+            <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            onClick={() => onNavigate('platforms')}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-white/10 hover:border-[#00D98B]/45 text-[#F4F7FC] text-xs font-semibold transition-colors"
+          >
+            <Globe className="w-3.5 h-3.5 text-[#38BDF8]" aria-hidden="true" />
+            <span>Platforms</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => onNavigate('history')}
+            className="px-4 py-2.5 rounded-xl border border-white/10 hover:border-[#8B5CF6]/45 text-[#F4F7FC] text-xs font-semibold transition-colors"
+          >
+            History
+          </button>
         </div>
       </section>
     </div>
@@ -98,99 +168,86 @@ export function OverviewView({
 
 /* ---------------- 2. Analyzer / Signal Control Panel ---------------- */
 
+const WINDOW_OPTIONS: Array<{ value: AnalysisWindowSetting; label: string }> = [
+  { value: '7h', label: 'Previous 7 Hours' },
+  { value: 10, label: 'Last 10 Rounds' },
+  { value: 25, label: 'Last 25 Rounds' },
+  { value: 50, label: 'Last 50 Rounds' },
+  { value: 0, label: 'All Stored Rounds' },
+];
+
 export function SignalControlPanel({
   settings,
-  platformConfig,
   activeSignal,
   isAnalyzing,
   apiError,
-  onSelectPlatform,
+  syncedMinesRoundsCount,
   onUpdateSettings,
-  onUpdateTraps,
   onGenerateSignal,
   onRefreshAnalysis,
   onClearBoard,
   onDismissError,
+  onOpenPlatforms,
 }: {
   settings: UserSettings;
-  platformConfig: PlatformIntegrationConfig;
   activeSignal: SignalRecord | null;
   isAnalyzing: boolean;
   apiError: string | null;
-  onSelectPlatform: (p: PlatformId) => void;
+  syncedMinesRoundsCount: number;
   onUpdateSettings: (partial: Partial<UserSettings>) => void;
-  onUpdateTraps: (traps: number) => void;
   onGenerateSignal: () => void;
   onRefreshAnalysis: () => void;
   onClearBoard: () => void;
   onDismissError: () => void;
+  onOpenPlatforms: () => void;
 }) {
-  const platform = settings.selectedPlatform;
-  const trapsCount = settings.trapsByPlatform[platform];
+  const trapsCount = settings.defaultMinesCount;
   const maxSafe = 25 - trapsCount;
   const clampedRec = Math.min(settings.recommendedCount, maxSafe);
-  const presets = platform === 'onewin' ? [1, 3, 5, 7] : [1, 3, 5, 10, 15, 20];
+  const presets = [1, 3, 5, 10, 15, 20];
 
   const singleSafe = calcSingleTileSafety(trapsCount);
   const jointSurvival = calcJointSurvivalProbability(trapsCount, clampedRec);
   const riskTier = classifyRisk(trapsCount, clampedRec, jointSurvival);
 
   return (
-    <aside className="surface-panel rounded-2xl border border-[#32C5E8]/25 p-5 flex flex-col gap-4">
-      {/* Platform Selector */}
-      <div className="flex flex-col gap-1.5">
-        <span className="text-xs font-medium text-[#9BB2D8]">
-          Select Platform
-        </span>
-        <div className="grid grid-cols-2 gap-1.5 p-1 rounded-xl bg-[#080F20] border border-[#32C5E8]/20">
-          <button
-            type="button"
-            onClick={() => onSelectPlatform('onewin')}
-            className={`py-2 rounded-lg text-xs font-bold transition-colors ${
-              platform === 'onewin'
-                ? 'bg-[#087AFF] text-white'
-                : 'text-[#9BB2D8] hover:text-white'
-            }`}
-          >
-            1win Mines
-          </button>
-          <button
-            type="button"
-            onClick={() => onSelectPlatform('bgr8')}
-            className={`py-2 rounded-lg text-xs font-bold transition-colors ${
-              platform === 'bgr8'
-                ? 'bg-orange-500 text-white'
-                : 'text-[#9BB2D8] hover:text-white'
-            }`}
-          >
-            BGR8 Mines
-          </button>
+    <aside className="glass-panel rounded-2xl p-5 flex flex-col gap-4">
+      <div className="flex items-center justify-between gap-2 pb-2 border-b border-white/[0.08]">
+        <div className="flex items-center gap-2 text-xs font-bold text-[#F4F7FC]">
+          <Sliders className="w-4 h-4 text-[#00D98B]" aria-hidden="true" />
+          <span>Controls</span>
         </div>
-        <div className="text-[11px] text-[#9BB2D8]">
-          Integration:{' '}
-          <span className="text-[#F3F7FF]">
-            {platformConfig.connectionStatus === 'verified'
-              ? 'Endpoint Verified'
-              : 'Manual / Local Observation'}
+        <button
+          type="button"
+          onClick={onOpenPlatforms}
+          className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#38BDF8] hover:underline"
+        >
+          <Globe className="w-3 h-3" aria-hidden="true" />
+          <span>
+            {syncedMinesRoundsCount > 0
+              ? `${syncedMinesRoundsCount} Synced`
+              : 'Platforms'}
           </span>
-        </div>
+        </button>
       </div>
 
       {/* Mine / Trap Count */}
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between text-xs">
-          <label htmlFor="ctrl-traps" className="text-[#9BB2D8] font-medium">
-            Number of Mines (1–24)
+          <label htmlFor="ctrl-traps" className="text-[#91A0B5] font-medium">
+            Mines (1–24)
           </label>
-          <span className="font-bold text-[#F3F7FF] tabular-nums">
+          <span className="font-bold text-[#F4F7FC] tabular-nums">
             {trapsCount} {trapsCount === 1 ? 'Mine' : 'Mines'}
           </span>
         </div>
         <select
           id="ctrl-traps"
           value={trapsCount}
-          onChange={(e) => onUpdateTraps(Number(e.target.value))}
-          className="w-full px-3 py-2 rounded-xl border border-[#32C5E8]/25 bg-[#080F20] text-sm font-semibold text-[#F3F7FF] focus:outline-none focus:border-[#32C5E8]"
+          onChange={(e) =>
+            onUpdateSettings({ defaultMinesCount: Number(e.target.value) })
+          }
+          className="w-full px-3 py-2 rounded-xl border border-white/10 bg-[#050A12] text-sm font-semibold text-[#F4F7FC] focus:outline-none focus:border-[#00D98B]"
         >
           {Array.from({ length: 24 }, (_, i) => i + 1).map((t) => (
             <option key={t} value={t}>
@@ -203,11 +260,11 @@ export function SignalControlPanel({
             <button
               key={p}
               type="button"
-              onClick={() => onUpdateTraps(p)}
-              className={`flex-1 min-w-[36px] py-1.5 rounded-lg border text-xs font-bold ${
+              onClick={() => onUpdateSettings({ defaultMinesCount: p })}
+              className={`flex-1 min-w-[36px] py-1.5 rounded-lg border text-xs font-bold transition-colors ${
                 trapsCount === p
-                  ? 'border-[#32C5E8] bg-[#32C5E8]/20 text-[#32C5E8]'
-                  : 'border-[#32C5E8]/20 text-[#9BB2D8] hover:border-[#32C5E8]/50'
+                  ? 'border-[#00D98B] bg-[#00D98B]/20 text-[#00D98B]'
+                  : 'border-white/10 text-[#91A0B5] hover:border-[#00D98B]/45'
               }`}
             >
               {p}
@@ -219,10 +276,10 @@ export function SignalControlPanel({
       {/* Recommended Selections Count */}
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center justify-between text-xs">
-          <label htmlFor="ctrl-rec-count" className="text-[#9BB2D8] font-medium">
-            Recommended Tiles (1–{maxSafe})
+          <label htmlFor="ctrl-rec-count" className="text-[#91A0B5] font-medium">
+            Safe Picks (1–{maxSafe})
           </label>
-          <span className="font-bold text-[#16A765] tabular-nums">
+          <span className="font-bold text-[#00D98B] tabular-nums">
             {clampedRec} {clampedRec === 1 ? 'Tile' : 'Tiles'}
           </span>
         </div>
@@ -235,34 +292,40 @@ export function SignalControlPanel({
           onChange={(e) =>
             onUpdateSettings({ recommendedCount: Number(e.target.value) })
           }
-          className="w-full accent-[#087AFF] cursor-pointer"
+          className="w-full accent-[#00D98B] cursor-pointer"
         />
       </div>
 
-      {/* Rounds Window & Engine Mode */}
+      {/* Analysis Window & Engine Mode */}
       <div className="grid grid-cols-2 gap-3 text-xs">
         <div className="flex flex-col gap-1">
-          <label htmlFor="ctrl-win" className="text-[#9BB2D8]">
-            History Window
+          <label htmlFor="ctrl-win" className="text-[#91A0B5]">
+            Window
           </label>
           <select
             id="ctrl-win"
-            value={settings.roundsToAnalyse}
-            onChange={(e) =>
-              onUpdateSettings({ roundsToAnalyse: Number(e.target.value) })
-            }
-            className="px-2.5 py-2 rounded-xl border border-[#32C5E8]/25 bg-[#080F20] text-[#F3F7FF]"
+            value={String(settings.analysisWindow)}
+            onChange={(e) => {
+              const raw = e.target.value;
+              const nextWin: AnalysisWindowSetting =
+                raw === '7h'
+                  ? '7h'
+                  : (Number(raw) as AnalysisWindowSetting);
+              onUpdateSettings({ analysisWindow: nextWin });
+            }}
+            className="px-2.5 py-2 rounded-xl border border-white/10 bg-[#050A12] text-[#F4F7FC]"
           >
-            <option value={10}>Last 10</option>
-            <option value={25}>Last 25</option>
-            <option value={50}>Last 50</option>
-            <option value={0}>All Rounds</option>
+            {WINDOW_OPTIONS.map((opt) => (
+              <option key={String(opt.value)} value={String(opt.value)}>
+                {opt.label}
+              </option>
+            ))}
           </select>
         </div>
 
         <div className="flex flex-col gap-1">
-          <label htmlFor="ctrl-eng" className="text-[#9BB2D8]">
-            Engine Mode
+          <label htmlFor="ctrl-eng" className="text-[#91A0B5]">
+            Engine
           </label>
           <select
             id="ctrl-eng"
@@ -272,7 +335,7 @@ export function SignalControlPanel({
                 analysisEngineMode: e.target.value as AnalysisEngineMode,
               })
             }
-            className="px-2.5 py-2 rounded-xl border border-[#32C5E8]/25 bg-[#080F20] text-[#F3F7FF]"
+            className="px-2.5 py-2 rounded-xl border border-white/10 bg-[#050A12] text-[#F4F7FC]"
           >
             <option value="ai_assisted">AI (Gemini)</option>
             <option value="combinatorial_only">Math Only</option>
@@ -281,26 +344,26 @@ export function SignalControlPanel({
       </div>
 
       {/* Theoretical Confidence Summary */}
-      <div className="grid grid-cols-3 gap-2 rounded-xl border border-[#32C5E8]/15 bg-[#171E32] p-2.5 text-center text-xs">
+      <div className="grid grid-cols-3 gap-2 rounded-xl border border-white/[0.08] bg-[#050A12]/75 p-2.5 text-center text-xs">
         <div>
-          <div className="text-[10px] text-[#9BB2D8]">Single Safe</div>
-          <div className="font-bold text-[#F3F7FF] tabular-nums">{singleSafe}%</div>
+          <div className="text-[10px] text-[#91A0B5]">Single Safe</div>
+          <div className="font-bold text-[#F4F7FC] tabular-nums">{singleSafe}%</div>
         </div>
-        <div className="border-x border-[#32C5E8]/15">
-          <div className="text-[10px] text-[#9BB2D8]">Path Odds</div>
-          <div className="font-bold text-[#F3F7FF] tabular-nums">
+        <div className="border-x border-white/[0.08]">
+          <div className="text-[10px] text-[#91A0B5]">Path Odds</div>
+          <div className="font-bold text-[#38BDF8] tabular-nums">
             {jointSurvival}%
           </div>
         </div>
         <div>
-          <div className="text-[10px] text-[#9BB2D8]">Risk Tier</div>
+          <div className="text-[10px] text-[#91A0B5]">Risk Tier</div>
           <div
             className={`font-bold text-[11px] ${
               riskTier === 'LOW RISK'
-                ? 'text-[#16A765]'
+                ? 'text-[#00D98B]'
                 : riskTier === 'MEDIUM RISK'
-                  ? 'text-orange-400'
-                  : 'text-[#D93646]'
+                  ? 'text-amber-400'
+                  : 'text-rose-400'
             }`}
           >
             {riskTier}
@@ -311,7 +374,7 @@ export function SignalControlPanel({
       {apiError && (
         <div
           role="alert"
-          className="rounded-xl border border-[#D93646]/50 bg-[#D93646]/15 p-3 text-xs text-red-200 flex flex-col gap-2"
+          className="rounded-xl border border-rose-500/50 bg-rose-500/15 p-3 text-xs text-red-200 flex flex-col gap-2"
         >
           <div className="flex justify-between gap-2">
             <span className="font-semibold">Analysis Error</span>
@@ -326,7 +389,7 @@ export function SignalControlPanel({
               onUpdateSettings({ analysisEngineMode: 'combinatorial_only' });
               onDismissError();
             }}
-            className="self-start px-2.5 py-1 rounded bg-[#D93646]/25 font-semibold"
+            className="self-start px-2.5 py-1 rounded bg-rose-500/25 font-semibold"
           >
             Switch to Math Only
           </button>
@@ -338,7 +401,7 @@ export function SignalControlPanel({
         type="button"
         onClick={onGenerateSignal}
         disabled={isAnalyzing}
-        className="w-full py-3 px-4 rounded-xl bg-[#087AFF] hover:bg-blue-500 disabled:opacity-60 text-white text-sm font-bold flex items-center justify-center gap-2 shadow-lg shadow-blue-950/40"
+        className="w-full py-3 px-4 rounded-xl bg-[#00D98B] hover:bg-[#00c47d] disabled:opacity-60 text-[#050A12] text-sm font-bold flex items-center justify-center gap-2 emerald-glow transition-colors"
       >
         {isAnalyzing ? (
           <>
@@ -348,7 +411,7 @@ export function SignalControlPanel({
         ) : (
           <>
             <Sparkles className="w-4 h-4" aria-hidden="true" />
-            <span>Generate Signal</span>
+            <span>Generate</span>
           </>
         )}
       </button>
@@ -358,40 +421,43 @@ export function SignalControlPanel({
           type="button"
           onClick={onRefreshAnalysis}
           disabled={isAnalyzing}
-          className="py-2 px-3 rounded-xl border border-[#32C5E8]/35 bg-[#32C5E8]/10 text-[#F3F7FF] font-semibold flex items-center justify-center gap-1.5"
+          className="py-2 px-3 rounded-xl border border-[#38BDF8]/35 bg-[#38BDF8]/10 text-[#F4F7FC] font-semibold flex items-center justify-center gap-1.5"
         >
-          <RefreshCw className="w-3.5 h-3.5 text-[#32C5E8]" aria-hidden="true" />
-          <span>Refresh Analysis</span>
+          <RefreshCw className="w-3.5 h-3.5 text-[#38BDF8]" aria-hidden="true" />
+          <span>Refresh</span>
         </button>
         <button
           type="button"
           onClick={onClearBoard}
-          className="py-2 px-3 rounded-xl border border-[#32C5E8]/20 text-[#9BB2D8] hover:text-white font-semibold"
+          className="py-2 px-3 rounded-xl border border-white/10 text-[#91A0B5] hover:text-white font-semibold"
         >
-          Clear Board
+          Clear
         </button>
       </div>
 
       {/* Active Signal Metadata */}
       {activeSignal && (
-        <div className="pt-3 border-t border-[#32C5E8]/15 flex flex-col gap-2 text-xs">
+        <div className="pt-3 border-t border-white/[0.08] flex flex-col gap-2 text-xs">
           <div className="flex justify-between">
-            <span className="text-[#9BB2D8]">Signal Reference</span>
-            <span className="font-semibold text-[#32C5E8]">{activeSignal.id}</span>
+            <span className="text-[#91A0B5]">Reference</span>
+            <span className="font-semibold text-[#38BDF8]">{activeSignal.id}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-[#9BB2D8]">Evaluation Status</span>
-            <span className="font-semibold text-[#16A765]">{activeSignal.status}</span>
+            <span className="text-[#91A0B5]">Window</span>
+            <span className="font-medium text-[#F4F7FC]">
+              {activeSignal.windowLabel ??
+                formatWindowLabel(settings.analysisWindow)}
+            </span>
           </div>
           <div className="flex justify-between">
-            <span className="text-[#9BB2D8]">Timestamp</span>
-            <span className="tabular-nums text-[#F3F7FF]">
-              {new Date(activeSignal.timestamp).toLocaleString()}
+            <span className="text-[#91A0B5]">Status</span>
+            <span className="font-semibold text-[#00D98B]">
+              {activeSignal.status}
             </span>
           </div>
           <div className="flex justify-between gap-2">
-            <span className="text-[#9BB2D8] shrink-0">Recommended</span>
-            <span className="font-semibold text-[#16A765] text-right">
+            <span className="text-[#91A0B5] shrink-0">Picks</span>
+            <span className="font-semibold text-[#00D98B] text-right">
               {formatCoordList(activeSignal.recommendedIndices)}
             </span>
           </div>
@@ -401,250 +467,7 @@ export function SignalControlPanel({
   );
 }
 
-/* ---------------- 3. Independent Platform Integration View ---------------- */
-
-export function SinglePlatformIntegrationView({
-  platform,
-  config,
-  onSaveConfig,
-  onSyncSnapshot,
-}: {
-  platform: PlatformId;
-  config: PlatformIntegrationConfig;
-  onSaveConfig: (next: PlatformIntegrationConfig) => void;
-  onSyncSnapshot: (
-    roundId: string,
-    trapsCount: number,
-    revealedSafe: number[],
-    revealedMines: number[]
-  ) => void;
-}) {
-  const meta = getPlatformMeta(platform);
-  const [snapshotJson, setSnapshotJson] = useState(
-    platform === 'onewin'
-      ? '{"roundId":"1WIN-101","trapsCount":3,"revealedSafeIndices":[2,8]}'
-      : '{"roundId":"BGR8-101","trapsCount":3,"revealedSafeIndices":[1,7]}'
-  );
-  const [snapshotMsg, setSnapshotMsg] = useState<string | null>(null);
-  const [isProbing, setIsProbing] = useState(false);
-  const [probeResult, setProbeResult] = useState<PlatformProbeResult | null>(
-    null
-  );
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-
-  async function handleProbe(e: React.FormEvent) {
-    e.preventDefault();
-    setErrorMsg(null);
-    if (config.gameUrl.trim()) {
-      const check = validatePlatformUrl(platform, config.gameUrl);
-      if (!check.valid) {
-        setErrorMsg(check.reason || 'Invalid URL.');
-        return;
-      }
-    }
-    setIsProbing(true);
-    try {
-      const result = await probePlatformConnection(platform, config);
-      setProbeResult(result);
-      onSaveConfig({
-        ...config,
-        lastCheckedAt: result.checkedAt,
-        connectionStatus: result.reachable
-          ? 'verified'
-          : result.validUrl
-            ? 'unreachable'
-            : 'unconfigured',
-        connectionNote: result.message,
-      });
-    } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : 'Probe failed.');
-    } finally {
-      setIsProbing(false);
-    }
-  }
-
-  function handleSync() {
-    setSnapshotMsg(null);
-    const parsed = parsePlatformSnapshot(platform, snapshotJson);
-    if (parsed.error || !parsed.snapshot) {
-      setSnapshotMsg(parsed.error || 'Unable to parse snapshot.');
-      return;
-    }
-    const snap = parsed.snapshot;
-    onSaveConfig({
-      ...config,
-      lastDetectedRoundId: config.currentRoundId,
-      currentRoundId: snap.roundId,
-    });
-    onSyncSnapshot(
-      snap.roundId,
-      snap.trapsCount,
-      snap.revealedSafeIndices,
-      snap.revealedMineIndices
-    );
-    setSnapshotMsg(
-      `Synchronized ${meta.name} round ${snap.roundId} (${snap.trapsCount} mines).`
-    );
-  }
-
-  return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-      <section className="lg:col-span-7 surface-panel rounded-2xl border border-[#32C5E8]/20 p-5 sm:p-6 flex flex-col gap-5">
-        <div>
-          <h2 className="text-lg font-bold text-[#F3F7FF]">
-            {meta.name} Independent Integration
-          </h2>
-          <p className="text-xs text-[#9BB2D8] mt-1">
-            Module: <code className="text-[#32C5E8]">/integrations/{platform === 'bgr8' ? 'bgr8.js' : 'onewin.js'}</code> · Separate configuration and history from other platforms.
-          </p>
-        </div>
-
-        <form onSubmit={handleProbe} className="flex flex-col gap-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {(
-              [
-                { id: 'manual_observation', label: 'Manual Board Entry' },
-                { id: 'authorized_api', label: 'Authorized API Endpoint' },
-              ] as Array<{ id: IntegrationMode; label: string }>
-            ).map((m) => (
-              <button
-                key={m.id}
-                type="button"
-                onClick={() => onSaveConfig({ ...config, integrationMode: m.id })}
-                className={`px-3 py-2 text-xs font-semibold rounded-xl border text-left ${
-                  config.integrationMode === m.id
-                    ? 'border-[#32C5E8] bg-[#32C5E8]/15 text-[#F3F7FF]'
-                    : 'border-[#32C5E8]/20 text-[#9BB2D8]'
-                }`}
-              >
-                {m.label}
-              </button>
-            ))}
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor={`url-${platform}`} className="text-xs font-medium text-[#9BB2D8]">
-              {meta.name} Game URL
-            </label>
-            <input
-              id={`url-${platform}`}
-              type="url"
-              placeholder={meta.defaultGameUrl}
-              value={config.gameUrl}
-              onChange={(e) => onSaveConfig({ ...config, gameUrl: e.target.value })}
-              className="w-full px-3.5 py-2 text-sm rounded-xl border border-[#32C5E8]/25 bg-[#080F20] text-[#F3F7FF] focus:outline-none focus:border-[#32C5E8]"
-            />
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor={`api-${platform}`} className="text-xs font-medium text-[#9BB2D8]">
-              Authorized API Endpoint (Requires Platform Credentials / Public Feed)
-            </label>
-            <input
-              id={`api-${platform}`}
-              type="url"
-              placeholder="https://api.example.com/v1/mines/state"
-              value={config.apiEndpoint}
-              onChange={(e) =>
-                onSaveConfig({ ...config, apiEndpoint: e.target.value })
-              }
-              className="w-full px-3.5 py-2 text-sm rounded-xl border border-[#32C5E8]/25 bg-[#080F20] text-[#F3F7FF] focus:outline-none focus:border-[#32C5E8]"
-            />
-          </div>
-
-          {errorMsg && (
-            <div className="text-xs text-red-200 bg-[#D93646]/15 border border-[#D93646]/40 rounded-xl px-3 py-2">
-              {errorMsg}
-            </div>
-          )}
-
-          <button
-            type="submit"
-            disabled={isProbing}
-            className="self-start inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#087AFF] hover:bg-blue-500 text-white text-xs font-bold"
-          >
-            {isProbing ? (
-              <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
-            ) : (
-              <Link2 className="w-4 h-4" aria-hidden="true" />
-            )}
-            <span>Verify {meta.name} Connection</span>
-          </button>
-        </form>
-
-        <div className="pt-4 border-t border-[#32C5E8]/15 flex flex-col gap-3">
-          <h3 className="text-sm font-bold text-[#F3F7FF]">
-            Visible Board / Manual Game Information Entry
-          </h3>
-          <textarea
-            rows={3}
-            value={snapshotJson}
-            onChange={(e) => setSnapshotJson(e.target.value)}
-            className="w-full px-3 py-2 rounded-xl border border-[#32C5E8]/25 bg-[#080F20] font-mono text-xs text-[#F3F7FF] focus:outline-none focus:border-[#32C5E8]"
-          />
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <button
-              type="button"
-              onClick={handleSync}
-              className="px-3.5 py-2 rounded-xl bg-[#16A765] hover:bg-emerald-500 text-[#080F20] text-xs font-bold"
-            >
-              Synchronize {meta.name} Visible State
-            </button>
-            {snapshotMsg && (
-              <span className="text-xs text-[#16A765] font-medium">
-                {snapshotMsg}
-              </span>
-            )}
-          </div>
-        </div>
-      </section>
-
-      <div className="lg:col-span-5 flex flex-col gap-5">
-        <section className="surface-panel rounded-2xl border border-[#32C5E8]/20 p-5 flex flex-col gap-3">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold text-[#F3F7FF]">
-              Connection Status
-            </h3>
-            <span className="inline-flex items-center gap-1.5 text-xs font-semibold">
-              {config.connectionStatus === 'verified' ? (
-                <CheckCircle2 className="w-4 h-4 text-[#16A765]" aria-hidden="true" />
-              ) : (
-                <XCircle className="w-4 h-4 text-[#9BB2D8]" aria-hidden="true" />
-              )}
-              {config.connectionStatus === 'verified'
-                ? 'VERIFIED'
-                : config.connectionStatus === 'unreachable'
-                  ? 'UNREACHABLE'
-                  : 'CONFIG REQUIRED'}
-            </span>
-          </div>
-          <p className="text-xs text-[#9BB2D8] leading-relaxed">
-            {probeResult?.message || config.connectionNote}
-          </p>
-        </section>
-
-        <section className="surface-panel rounded-2xl border border-[#32C5E8]/20 p-5 flex flex-col gap-2.5">
-          <div className="flex items-center gap-2 text-sm font-bold text-[#F3F7FF]">
-            <LockKeyhole className="w-4 h-4 text-[#32C5E8]" aria-hidden="true" />
-            <span>Authorization & Compliance</span>
-          </div>
-          <ul className="text-xs text-[#9BB2D8] space-y-2">
-            <li className="flex items-start gap-2">
-              <ShieldAlert className="w-3.5 h-3.5 text-[#32C5E8] shrink-0 mt-0.5" aria-hidden="true" />
-              <span>Never fabricates successful API connections when credentials or endpoints are absent.</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <ShieldAlert className="w-3.5 h-3.5 text-[#32C5E8] shrink-0 mt-0.5" aria-hidden="true" />
-              <span>Never accesses hidden server-side mines or bypasses platform authentication.</span>
-            </li>
-          </ul>
-        </section>
-      </div>
-    </div>
-  );
-}
-
-/* ---------------- 4. Signal History with Search, Filtering & Pagination ---------------- */
+/* ---------------- 3. Signal History with Search, Filtering & Pagination ---------------- */
 
 const PAGE_SIZE = 10;
 
@@ -658,22 +481,21 @@ export function SignalHistoryView({
   onDeleteSignal: (id: string) => void;
 }) {
   const [search, setSearch] = useState('');
-  const [platformFilter, setPlatformFilter] = useState<'all' | PlatformId>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'Active' | 'Evaluated'>('all');
   const [page, setPage] = useState(1);
 
   const { filtered, totalPages, safePage, pageItems } = useMemo(() => {
     const q = search.trim().toLowerCase();
     const list = signals.filter((sig) => {
-      if (platformFilter !== 'all' && sig.platform !== platformFilter) return false;
       if (statusFilter === 'Active' && sig.status !== 'Active') return false;
       if (statusFilter === 'Evaluated' && sig.status === 'Active') return false;
       if (q) {
         const coords = formatCoordList(sig.recommendedIndices).toLowerCase();
+        const win = (sig.windowLabel ?? '').toLowerCase();
         return (
           sig.id.toLowerCase().includes(q) ||
           coords.includes(q) ||
-          sig.platform.includes(q)
+          win.includes(q)
         );
       }
       return true;
@@ -686,22 +508,22 @@ export function SignalHistoryView({
       safePage: current,
       pageItems: list.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE),
     };
-  }, [signals, platformFilter, statusFilter, search, page]);
+  }, [signals, statusFilter, search, page]);
 
   return (
-    <section className="surface-panel rounded-2xl border border-[#32C5E8]/20 p-5 sm:p-6 flex flex-col gap-5">
+    <section className="glass-panel rounded-2xl p-5 sm:p-6 flex flex-col gap-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-bold text-[#F3F7FF]">Signal History</h2>
-          <p className="text-xs text-[#9BB2D8] tabular-nums">
-            {filtered.length} matching records ({signals.length} total stored)
+          <h2 className="text-lg font-bold text-[#F4F7FC]">Round History</h2>
+          <p className="text-xs text-[#91A0B5] tabular-nums">
+            {filtered.length} matching records ({signals.length} total)
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative">
             <Search
-              className="w-3.5 h-3.5 text-[#9BB2D8] absolute left-3 top-1/2 -translate-y-1/2"
+              className="w-3.5 h-3.5 text-[#91A0B5] absolute left-3 top-1/2 -translate-y-1/2"
               aria-hidden="true"
             />
             <input
@@ -712,23 +534,9 @@ export function SignalHistoryView({
                 setPage(1);
               }}
               placeholder="Search ID or coord..."
-              className="pl-8 pr-3 py-1.5 rounded-xl border border-[#32C5E8]/25 bg-[#080F20] text-xs text-[#F3F7FF] focus:outline-none focus:border-[#32C5E8]"
+              className="pl-8 pr-3 py-1.5 rounded-xl border border-white/10 bg-[#050A12] text-xs text-[#F4F7FC] focus:outline-none focus:border-[#00D98B]"
             />
           </div>
-
-          <select
-            aria-label="Filter by platform"
-            value={platformFilter}
-            onChange={(e) => {
-              setPlatformFilter(e.target.value as 'all' | PlatformId);
-              setPage(1);
-            }}
-            className="px-3 py-1.5 rounded-xl border border-[#32C5E8]/25 bg-[#080F20] text-xs text-[#F3F7FF]"
-          >
-            <option value="all">All Platforms</option>
-            <option value="onewin">1win Mines</option>
-            <option value="bgr8">BGR8 Mines</option>
-          </select>
 
           <select
             aria-label="Filter by evaluation status"
@@ -737,7 +545,7 @@ export function SignalHistoryView({
               setStatusFilter(e.target.value as 'all' | 'Active' | 'Evaluated');
               setPage(1);
             }}
-            className="px-3 py-1.5 rounded-xl border border-[#32C5E8]/25 bg-[#080F20] text-xs text-[#F3F7FF]"
+            className="px-3 py-1.5 rounded-xl border border-white/10 bg-[#050A12] text-xs text-[#F4F7FC]"
           >
             <option value="all">All Statuses</option>
             <option value="Active">Active (Pending)</option>
@@ -747,7 +555,7 @@ export function SignalHistoryView({
       </div>
 
       {pageItems.length === 0 ? (
-        <div className="py-10 text-center text-xs text-[#9BB2D8]">
+        <div className="py-10 text-center text-xs text-[#91A0B5]">
           No signal records found. Generate signals in the Mines Analyzer to populate history.
         </div>
       ) : (
@@ -755,9 +563,9 @@ export function SignalHistoryView({
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
-                <tr className="border-b border-[#32C5E8]/15 text-[#9BB2D8]">
+                <tr className="border-b border-white/[0.08] text-[#91A0B5]">
                   <th className="py-2.5 pr-3">Reference</th>
-                  <th className="py-2.5 px-3">Platform</th>
+                  <th className="py-2.5 px-3">Window</th>
                   <th className="py-2.5 px-3 text-right">Mines</th>
                   <th className="py-2.5 px-3">Recommended Coords</th>
                   <th className="py-2.5 px-3">Timestamp</th>
@@ -766,22 +574,22 @@ export function SignalHistoryView({
                   <th className="py-2.5 pl-3 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#32C5E8]/10">
+              <tbody className="divide-y divide-white/[0.06]">
                 {pageItems.map((sig) => (
                   <tr key={sig.id}>
-                    <td className="py-2.5 pr-3 font-semibold text-[#F3F7FF] whitespace-nowrap">
+                    <td className="py-2.5 pr-3 font-semibold text-[#F4F7FC] whitespace-nowrap">
                       {sig.id}
                     </td>
-                    <td className="py-2.5 px-3 whitespace-nowrap text-[#9BB2D8]">
-                      {sig.platform === 'onewin' ? '1win Mines' : 'BGR8 Mines'}
+                    <td className="py-2.5 px-3 whitespace-nowrap text-[#91A0B5]">
+                      {sig.windowLabel ?? 'Previous 7 Hours'}
                     </td>
                     <td className="py-2.5 px-3 text-right tabular-nums">
                       {sig.trapsCount}
                     </td>
-                    <td className="py-2.5 px-3 text-[#16A765] font-medium">
+                    <td className="py-2.5 px-3 text-[#00D98B] font-medium">
                       {formatCoordList(sig.recommendedIndices)}
                     </td>
-                    <td className="py-2.5 px-3 text-[#9BB2D8] tabular-nums whitespace-nowrap">
+                    <td className="py-2.5 px-3 text-[#91A0B5] tabular-nums whitespace-nowrap">
                       {new Date(sig.timestamp).toLocaleString()}
                     </td>
                     <td className="py-2.5 px-3 tabular-nums whitespace-nowrap">
@@ -806,7 +614,7 @@ export function SignalHistoryView({
                         <button
                           type="button"
                           onClick={() => onInspectSignal(sig.id, true)}
-                          className="p-1.5 rounded text-[#32C5E8] hover:bg-[#32C5E8]/15"
+                          className="p-1.5 rounded text-[#38BDF8] hover:bg-[#38BDF8]/15"
                           title="Record Actual Result"
                         >
                           <ClipboardCheck className="w-3.5 h-3.5" aria-hidden="true" />
@@ -814,7 +622,7 @@ export function SignalHistoryView({
                         <button
                           type="button"
                           onClick={() => onDeleteSignal(sig.id)}
-                          className="p-1.5 rounded text-[#D93646] hover:bg-[#D93646]/15"
+                          className="p-1.5 rounded text-rose-400 hover:bg-rose-500/15"
                           title="Delete"
                         >
                           <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
@@ -828,7 +636,7 @@ export function SignalHistoryView({
           </div>
 
           {/* Pagination */}
-          <div className="flex items-center justify-between pt-2 border-t border-[#32C5E8]/15 text-xs text-[#9BB2D8]">
+          <div className="flex items-center justify-between pt-2 border-t border-white/[0.08] text-xs text-[#91A0B5]">
             <span className="tabular-nums">
               Page {safePage} of {totalPages}
             </span>
@@ -837,7 +645,7 @@ export function SignalHistoryView({
                 type="button"
                 disabled={safePage <= 1}
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
-                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-[#32C5E8]/25 disabled:opacity-40"
+                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-white/10 disabled:opacity-40"
               >
                 <ChevronLeft className="w-3.5 h-3.5" aria-hidden="true" />
                 <span>Previous</span>
@@ -846,7 +654,7 @@ export function SignalHistoryView({
                 type="button"
                 disabled={safePage >= totalPages}
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-[#32C5E8]/25 disabled:opacity-40"
+                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-white/10 disabled:opacity-40"
               >
                 <span>Next</span>
                 <ChevronRight className="w-3.5 h-3.5" aria-hidden="true" />
@@ -859,7 +667,7 @@ export function SignalHistoryView({
   );
 }
 
-/* ---------------- 5. Performance Dashboard ---------------- */
+/* ---------------- 4. Performance Dashboard ---------------- */
 
 export function PerformanceDashboardView({
   signals,
@@ -882,34 +690,34 @@ export function PerformanceDashboardView({
 
   return (
     <div className="flex flex-col gap-6">
-      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        <div className="surface-card rounded-2xl border border-[#32C5E8]/20 p-4">
-          <div className="text-xs text-[#9BB2D8]">Total Signals</div>
+      <section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+        <div className="glass-card rounded-2xl p-4">
+          <div className="text-xs text-[#91A0B5]">Total Signals</div>
           <div className="mt-1.5 text-2xl font-bold tabular-nums">
             {metrics.totalSignals}
           </div>
         </div>
-        <div className="surface-card rounded-2xl border border-[#32C5E8]/20 p-4">
-          <div className="text-xs text-[#9BB2D8]">Evaluated Signals</div>
+        <div className="glass-card rounded-2xl p-4">
+          <div className="text-xs text-[#91A0B5]">Evaluated Rounds</div>
           <div className="mt-1.5 text-2xl font-bold tabular-nums">
             {metrics.evaluatedRounds}
           </div>
         </div>
-        <div className="surface-card rounded-2xl border border-[#32C5E8]/20 p-4">
-          <div className="text-xs text-[#9BB2D8]">Correct Recommendations</div>
-          <div className="mt-1.5 text-2xl font-bold text-[#16A765] tabular-nums">
+        <div className="glass-card rounded-2xl p-4">
+          <div className="text-xs text-[#91A0B5]">Safe Picks</div>
+          <div className="mt-1.5 text-2xl font-bold text-[#00D98B] tabular-nums">
             {metrics.correctRecommendations}
           </div>
         </div>
-        <div className="surface-card rounded-2xl border border-[#32C5E8]/20 p-4">
-          <div className="text-xs text-[#9BB2D8]">Incorrect Recommendations</div>
-          <div className="mt-1.5 text-2xl font-bold text-[#D93646] tabular-nums">
+        <div className="glass-card rounded-2xl p-4">
+          <div className="text-xs text-[#91A0B5]">Mine Hits</div>
+          <div className="mt-1.5 text-2xl font-bold text-rose-400 tabular-nums">
             {metrics.incorrectRecommendations}
           </div>
         </div>
-        <div className="surface-card rounded-2xl border border-[#32C5E8]/20 p-4">
-          <div className="text-xs text-[#9BB2D8]">Measured Performance</div>
-          <div className="mt-1.5 text-2xl font-bold text-[#32C5E8] tabular-nums">
+        <div className="glass-card rounded-2xl p-4">
+          <div className="text-xs text-[#91A0B5]">Measured Safe Rate</div>
+          <div className="mt-1.5 text-2xl font-bold text-[#38BDF8] tabular-nums">
             {metrics.measuredSafeRatePct === null
               ? '—'
               : `${metrics.measuredSafeRatePct}%`}
@@ -918,63 +726,72 @@ export function PerformanceDashboardView({
       </section>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        <section className="lg:col-span-6 surface-panel rounded-2xl border border-[#32C5E8]/20 p-5 flex flex-col gap-4">
-          <h2 className="text-base font-bold text-[#F3F7FF]">
-            Platform Comparison
-          </h2>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs">
-              <thead>
-                <tr className="border-b border-[#32C5E8]/15 text-[#9BB2D8]">
-                  <th className="py-2 pr-3">Platform</th>
-                  <th className="py-2 px-3 text-right">Signals</th>
-                  <th className="py-2 px-3 text-right">Evaluated</th>
-                  <th className="py-2 px-3 text-right">Safe / Mine</th>
-                  <th className="py-2 pl-3 text-right">Measured %</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#32C5E8]/10 tabular-nums">
-                {metrics.byPlatform.map((row) => (
-                  <tr key={row.platform}>
-                    <td className="py-2.5 pr-3 font-semibold">{row.platformName}</td>
-                    <td className="py-2.5 px-3 text-right">{row.signalsCount}</td>
-                    <td className="py-2.5 px-3 text-right">{row.evaluatedRounds}</td>
-                    <td className="py-2.5 px-3 text-right">
-                      <span className="text-[#16A765]">{row.correctRecommendations}</span> /{' '}
-                      <span className="text-[#D93646]">{row.incorrectRecommendations}</span>
-                    </td>
-                    <td className="py-2.5 pl-3 text-right font-bold">
-                      {row.measuredSafeRatePct === null
-                        ? '—'
-                        : `${row.measuredSafeRatePct}%`}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        <section className="lg:col-span-6 glass-panel rounded-2xl p-5 flex flex-col gap-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-bold text-[#F4F7FC] flex items-center gap-2">
+              <Clock className="w-4 h-4 text-[#38BDF8]" aria-hidden="true" />
+              <span>7-Hour Window Summary</span>
+            </h2>
+            <span className="text-xs text-[#91A0B5] tabular-nums">
+              Coverage:{' '}
+              {metrics.evaluationCoveragePct === null
+                ? '—'
+                : `${metrics.evaluationCoveragePct}%`}
+            </span>
+          </div>
+          <div className="grid grid-cols-3 gap-3 text-xs">
+            <div className="rounded-xl border border-white/[0.08] bg-[#050A12]/75 p-3">
+              <div className="text-[10px] text-[#91A0B5]">7h Signals</div>
+              <div className="mt-1 text-lg font-bold tabular-nums text-[#F4F7FC]">
+                {metrics.sevenHourSignals}
+              </div>
+            </div>
+            <div className="rounded-xl border border-white/[0.08] bg-[#050A12]/75 p-3">
+              <div className="text-[10px] text-[#91A0B5]">7h Evaluated</div>
+              <div className="mt-1 text-lg font-bold tabular-nums text-[#F4F7FC]">
+                {metrics.sevenHourEvaluatedRounds}
+              </div>
+            </div>
+            <div className="rounded-xl border border-white/[0.08] bg-[#050A12]/75 p-3">
+              <div className="text-[10px] text-[#91A0B5]">7h Accuracy</div>
+              <div className="mt-1 text-lg font-bold tabular-nums text-[#00D98B]">
+                {metrics.sevenHourAccuracyPct === null
+                  ? '—'
+                  : `${metrics.sevenHourAccuracyPct}%`}
+              </div>
+            </div>
+          </div>
+          <div className="rounded-xl border border-white/[0.08] bg-[#050A12]/75 p-3 text-xs flex items-center justify-between">
+            <span className="text-[#91A0B5]">Theoretical Baseline Avg</span>
+            <span className="font-bold text-[#38BDF8] tabular-nums">
+              {metrics.theoreticalAvgSingleSafePct === null
+                ? '—'
+                : `${metrics.theoreticalAvgSingleSafePct}%`}
+            </span>
           </div>
         </section>
 
-        <section className="lg:col-span-6 surface-panel rounded-2xl border border-[#32C5E8]/20 p-5 flex flex-col gap-4">
-          <h2 className="text-base font-bold text-[#F3F7FF]">
-            Performance by Mine Configuration
+        <section className="lg:col-span-6 glass-panel rounded-2xl p-5 flex flex-col gap-4">
+          <h2 className="text-base font-bold text-[#F4F7FC] flex items-center gap-2">
+            <BarChart3 className="w-4 h-4 text-[#00D98B]" aria-hidden="true" />
+            <span>Performance by Mine Configuration</span>
           </h2>
           {metrics.byTrapConfig.length === 0 ? (
-            <div className="py-4 text-xs text-[#9BB2D8] flex items-center justify-between">
+            <div className="py-4 text-xs text-[#91A0B5] flex items-center justify-between">
               <span>No mine configurations recorded yet.</span>
               <button
                 type="button"
                 onClick={onGenerateSignal}
-                className="px-3 py-1.5 rounded-lg bg-[#087AFF] text-white font-semibold"
+                className="px-3 py-1.5 rounded-lg bg-[#00D98B] text-[#050A12] font-bold"
               >
-                Generate Signal
+                Generate
               </button>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
-                  <tr className="border-b border-[#32C5E8]/15 text-[#9BB2D8]">
+                  <tr className="border-b border-white/[0.08] text-[#91A0B5]">
                     <th className="py-2 pr-3">Mines</th>
                     <th className="py-2 px-3 text-right">Signals</th>
                     <th className="py-2 px-3 text-right">Safe / Mine</th>
@@ -982,21 +799,26 @@ export function PerformanceDashboardView({
                     <th className="py-2 pl-3 text-right">Theoretical %</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#32C5E8]/10 tabular-nums">
+                <tbody className="divide-y divide-white/[0.06] tabular-nums">
                   {metrics.byTrapConfig.map((row) => (
                     <tr key={row.trapsCount}>
                       <td className="py-2 pr-3 font-semibold">{row.trapsCount}</td>
                       <td className="py-2 px-3 text-right">{row.signalsCount}</td>
                       <td className="py-2 px-3 text-right">
-                        <span className="text-[#16A765]">{row.correctRecommendations}</span> /{' '}
-                        <span className="text-[#D93646]">{row.incorrectRecommendations}</span>
+                        <span className="text-[#00D98B]">
+                          {row.correctRecommendations}
+                        </span>{' '}
+                        /{' '}
+                        <span className="text-rose-400">
+                          {row.incorrectRecommendations}
+                        </span>
                       </td>
                       <td className="py-2 px-3 text-right font-bold">
                         {row.measuredSafeRatePct === null
                           ? '—'
                           : `${row.measuredSafeRatePct}%`}
                       </td>
-                      <td className="py-2 pl-3 text-right text-[#9BB2D8]">
+                      <td className="py-2 pl-3 text-right text-[#91A0B5]">
                         {row.theoreticalSingleSafePct}%
                       </td>
                     </tr>
@@ -1008,23 +830,23 @@ export function PerformanceDashboardView({
         </section>
       </div>
 
-      <section className="surface-panel rounded-2xl border border-[#32C5E8]/20 p-5 flex flex-col gap-3">
-        <h2 className="text-base font-bold text-[#F3F7FF]">
+      <section className="glass-panel rounded-2xl p-5 flex flex-col gap-3">
+        <h2 className="text-base font-bold text-[#F4F7FC]">
           Historical Tile Observation Matrix
         </h2>
         <div className="grid grid-cols-5 gap-2">
           {empiricalMatrix.map((tile) => (
             <div
               key={tile.tileIndex}
-              className="rounded-xl border border-[#32C5E8]/15 bg-[#171E32] p-2 text-center"
+              className="rounded-xl border border-white/[0.08] bg-[#050A12]/75 p-2 text-center"
             >
-              <div className="text-[10px] text-[#9BB2D8]">{tile.coord}</div>
-              <div className="text-xs font-bold text-[#F3F7FF] tabular-nums mt-0.5">
+              <div className="text-[10px] text-[#91A0B5]">{tile.coord}</div>
+              <div className="text-xs font-bold text-[#F4F7FC] tabular-nums mt-0.5">
                 {tile.empiricalSafeRatePct === null
                   ? '—'
                   : `${tile.empiricalSafeRatePct}%`}
               </div>
-              <div className="text-[10px] text-[#9BB2D8] tabular-nums">
+              <div className="text-[10px] text-[#91A0B5] tabular-nums">
                 {tile.observedSafeCount}S / {tile.observedMineCount}M
               </div>
             </div>
@@ -1033,20 +855,20 @@ export function PerformanceDashboardView({
       </section>
 
       {/* Authentic Runtime Performance Monitor */}
-      <section className="surface-panel rounded-2xl border border-[#32C5E8]/20 p-5 flex flex-col gap-4">
+      <section className="glass-panel rounded-2xl p-5 flex flex-col gap-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <h2 className="text-base font-bold text-[#F3F7FF]">
+            <h2 className="text-base font-bold text-[#F4F7FC]">
               Measured Runtime Performance
             </h2>
-            <p className="text-xs text-[#9BB2D8]">
-              Live browser timings recorded from Web Performance APIs (no simulated numbers).
+            <p className="text-xs text-[#91A0B5]">
+              Live browser timings recorded from Web Performance APIs.
             </p>
           </div>
           <button
             type="button"
             onClick={() => setPerfVersion((v) => v + 1)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#32C5E8]/25 text-xs font-semibold text-[#32C5E8] hover:bg-[#32C5E8]/10"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/10 text-xs font-semibold text-[#38BDF8] hover:bg-[#38BDF8]/10"
           >
             <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />
             <span>Sample Metrics</span>
@@ -1054,54 +876,54 @@ export function PerformanceDashboardView({
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-          <div className="rounded-xl border border-[#32C5E8]/15 bg-[#171E32] p-3">
-            <div className="text-[11px] text-[#9BB2D8]">Initial Load / FCP</div>
-            <div className="mt-1 font-bold text-[#F3F7FF] tabular-nums">
+          <div className="rounded-xl border border-white/[0.08] bg-[#050A12]/75 p-3">
+            <div className="text-[11px] text-[#91A0B5]">Initial Load / FCP</div>
+            <div className="mt-1 font-bold text-[#F4F7FC] tabular-nums">
               {perf.homepageLoadMs !== null ? `${perf.homepageLoadMs} ms` : '—'}
               {perf.firstContentfulPaintMs !== null
                 ? ` / ${perf.firstContentfulPaintMs} ms`
                 : ''}
             </div>
           </div>
-          <div className="rounded-xl border border-[#32C5E8]/15 bg-[#171E32] p-3">
-            <div className="text-[11px] text-[#9BB2D8]">Dashboard Switch</div>
-            <div className="mt-1 font-bold text-[#32C5E8] tabular-nums">
+          <div className="rounded-xl border border-white/[0.08] bg-[#050A12]/75 p-3">
+            <div className="text-[11px] text-[#91A0B5]">Dashboard Switch</div>
+            <div className="mt-1 font-bold text-[#38BDF8] tabular-nums">
               {perf.dashboardSwitchMs !== null ? `${perf.dashboardSwitchMs} ms` : '—'}
             </div>
           </div>
-          <div className="rounded-xl border border-[#32C5E8]/15 bg-[#171E32] p-3">
-            <div className="text-[11px] text-[#9BB2D8]">Signal Gen (Math / Total)</div>
-            <div className="mt-1 font-bold text-[#16A765] tabular-nums">
+          <div className="rounded-xl border border-white/[0.08] bg-[#050A12]/75 p-3">
+            <div className="text-[11px] text-[#91A0B5]">Signal Gen (Math / Total)</div>
+            <div className="mt-1 font-bold text-[#00D98B] tabular-nums">
               {perf.lastSignalMathMs !== null ? `${perf.lastSignalMathMs} ms` : '—'} /{' '}
               {perf.lastSignalGenMs !== null ? `${perf.lastSignalGenMs} ms` : '—'}
             </div>
           </div>
-          <div className="rounded-xl border border-[#32C5E8]/15 bg-[#171E32] p-3">
-            <div className="text-[11px] text-[#9BB2D8]">Board Render</div>
-            <div className="mt-1 font-bold text-[#F3F7FF] tabular-nums">
+          <div className="rounded-xl border border-white/[0.08] bg-[#050A12]/75 p-3">
+            <div className="text-[11px] text-[#91A0B5]">Board Render</div>
+            <div className="mt-1 font-bold text-[#F4F7FC] tabular-nums">
               {perf.lastBoardRenderMs !== null ? `${perf.lastBoardRenderMs} ms` : '—'}
             </div>
           </div>
-          <div className="rounded-xl border border-[#32C5E8]/15 bg-[#171E32] p-3">
-            <div className="text-[11px] text-[#9BB2D8]">Last / Avg API Time</div>
-            <div className="mt-1 font-bold text-[#F3F7FF] tabular-nums">
+          <div className="rounded-xl border border-white/[0.08] bg-[#050A12]/75 p-3">
+            <div className="text-[11px] text-[#91A0B5]">Last / Avg API Time</div>
+            <div className="mt-1 font-bold text-[#F4F7FC] tabular-nums">
               {perf.lastApiResponseMs !== null ? `${perf.lastApiResponseMs} ms` : '—'} /{' '}
               {perf.avgApiResponseMs !== null ? `${perf.avgApiResponseMs} ms` : '—'}
             </div>
           </div>
-          <div className="rounded-xl border border-[#32C5E8]/15 bg-[#171E32] p-3">
-            <div className="text-[11px] text-[#9BB2D8]">JS Errors</div>
+          <div className="rounded-xl border border-white/[0.08] bg-[#050A12]/75 p-3">
+            <div className="text-[11px] text-[#91A0B5]">JS Errors</div>
             <div
               className={`mt-1 font-bold tabular-nums ${
-                perf.jsErrorCount > 0 ? 'text-[#D93646]' : 'text-[#16A765]'
+                perf.jsErrorCount > 0 ? 'text-rose-400' : 'text-[#00D98B]'
               }`}
             >
               {perf.jsErrorCount}
             </div>
           </div>
-          <div className="rounded-xl border border-[#32C5E8]/15 bg-[#171E32] p-3 col-span-2">
-            <div className="text-[11px] text-[#9BB2D8]">Browser JS Heap</div>
-            <div className="mt-1 font-bold text-[#F3F7FF] tabular-nums">
+          <div className="rounded-xl border border-white/[0.08] bg-[#050A12]/75 p-3 col-span-2">
+            <div className="text-[11px] text-[#91A0B5]">Browser JS Heap</div>
+            <div className="mt-1 font-bold text-[#F4F7FC] tabular-nums">
               {perf.usedJsHeapMb !== null
                 ? `${perf.usedJsHeapMb} MB${
                     perf.jsHeapLimitMb ? ` / ${perf.jsHeapLimitMb} MB` : ''
@@ -1115,7 +937,7 @@ export function PerformanceDashboardView({
   );
 }
 
-/* ---------------- 6. Settings View ---------------- */
+/* ---------------- 5. Settings View ---------------- */
 
 function downloadTextFile(content: string, filename: string, mime: string) {
   const blob = new Blob([content], { type: mime });
@@ -1142,15 +964,15 @@ export function SettingsModuleView({
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-      <section className="lg:col-span-7 surface-panel rounded-2xl border border-[#32C5E8]/20 p-5 sm:p-6 flex flex-col gap-5">
-        <h2 className="text-lg font-bold text-[#F3F7FF] flex items-center gap-2">
-          <Sliders className="w-4 h-4 text-[#32C5E8]" aria-hidden="true" />
+      <section className="lg:col-span-7 glass-panel rounded-2xl p-5 sm:p-6 flex flex-col gap-5">
+        <h2 className="text-lg font-bold text-[#F4F7FC] flex items-center gap-2">
+          <Sliders className="w-4 h-4 text-[#00D98B]" aria-hidden="true" />
           <span>Analyzer & Notification Settings</span>
         </h2>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="flex flex-col gap-1.5">
-            <label htmlFor="s-eng" className="text-xs text-[#9BB2D8]">
+            <label htmlFor="s-eng" className="text-xs text-[#91A0B5]">
               Analysis Engine
             </label>
             <select
@@ -1161,7 +983,7 @@ export function SettingsModuleView({
                   analysisEngineMode: e.target.value as AnalysisEngineMode,
                 })
               }
-              className="px-3 py-2 rounded-xl border border-[#32C5E8]/25 bg-[#080F20] text-xs font-semibold text-[#F3F7FF]"
+              className="px-3 py-2 rounded-xl border border-white/10 bg-[#050A12] text-xs font-semibold text-[#F4F7FC]"
             >
               <option value="ai_assisted">AI-Assisted (Gemini)</option>
               <option value="combinatorial_only">Combinatorial Math Only</option>
@@ -1169,7 +991,7 @@ export function SettingsModuleView({
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label htmlFor="s-mode" className="text-xs text-[#9BB2D8]">
+            <label htmlFor="s-mode" className="text-xs text-[#91A0B5]">
               Signal Generation Mode
             </label>
             <select
@@ -1180,20 +1002,66 @@ export function SettingsModuleView({
                   generationMode: e.target.value as GenerationMode,
                 })
               }
-              className="px-3 py-2 rounded-xl border border-[#32C5E8]/25 bg-[#080F20] text-xs font-semibold text-[#F3F7FF]"
+              className="px-3 py-2 rounded-xl border border-white/10 bg-[#050A12] text-xs font-semibold text-[#F4F7FC]"
             >
               <option value="manual">Manual</option>
               <option value="automatic">Automatic Refresh</option>
             </select>
           </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="s-window" className="text-xs text-[#91A0B5]">
+              Analysis Window
+            </label>
+            <select
+              id="s-window"
+              value={String(settings.analysisWindow)}
+              onChange={(e) => {
+                const raw = e.target.value;
+                onUpdateSettings({
+                  analysisWindow:
+                    raw === '7h' ? '7h' : (Number(raw) as AnalysisWindowSetting),
+                });
+              }}
+              className="px-3 py-2 rounded-xl border border-white/10 bg-[#050A12] text-xs font-semibold text-[#F4F7FC]"
+            >
+              {WINDOW_OPTIONS.map((opt) => (
+                <option key={String(opt.value)} value={String(opt.value)}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="s-interval" className="text-xs text-[#91A0B5]">
+              Auto-Refresh Interval (sec)
+            </label>
+            <input
+              id="s-interval"
+              type="number"
+              min={5}
+              max={300}
+              value={settings.signalRefreshIntervalSec}
+              onChange={(e) =>
+                onUpdateSettings({
+                  signalRefreshIntervalSec: Math.max(
+                    5,
+                    Math.min(300, Number(e.target.value) || 30)
+                  ),
+                })
+              }
+              className="px-3 py-2 rounded-xl border border-white/10 bg-[#050A12] text-xs font-semibold text-[#F4F7FC]"
+            />
+          </div>
         </div>
 
-        <div className="flex items-center justify-between pt-3 border-t border-[#32C5E8]/15">
+        <div className="flex items-center justify-between pt-3 border-t border-white/[0.08]">
           <div>
-            <div className="text-sm font-medium text-[#F3F7FF]">
+            <div className="text-sm font-medium text-[#F4F7FC]">
               Sound Notifications
             </div>
-            <p className="text-xs text-[#9BB2D8]">
+            <p className="text-xs text-[#91A0B5]">
               Acoustic feedback when signals are generated or evaluated.
             </p>
           </div>
@@ -1201,7 +1069,7 @@ export function SettingsModuleView({
             <button
               type="button"
               onClick={() => playSignalGeneratedSound(true)}
-              className="px-2.5 py-1.5 text-xs rounded-lg border border-[#32C5E8]/25 text-[#F3F7FF]"
+              className="px-2.5 py-1.5 text-xs rounded-lg border border-white/10 text-[#F4F7FC]"
             >
               Test
             </button>
@@ -1210,19 +1078,19 @@ export function SettingsModuleView({
               onClick={() =>
                 onUpdateSettings({ soundEnabled: !settings.soundEnabled })
               }
-              className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-[#32C5E8]/35 bg-[#32C5E8]/10 text-[#F3F7FF]"
+              className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-[#00D98B]/35 bg-[#00D98B]/10 text-[#00D98B]"
             >
               {settings.soundEnabled ? 'Enabled' : 'Muted'}
             </button>
           </div>
         </div>
 
-        <div className="flex items-center justify-between pt-3 border-t border-[#32C5E8]/15">
+        <div className="flex items-center justify-between pt-3 border-t border-white/[0.08]">
           <div>
-            <div className="text-sm font-medium text-[#F3F7FF]">
+            <div className="text-sm font-medium text-[#F4F7FC]">
               Show Tile Baseline %
             </div>
-            <p className="text-xs text-[#9BB2D8]">
+            <p className="text-xs text-[#91A0B5]">
               Display combinatorial percentages inside grid tiles.
             </p>
           </div>
@@ -1233,18 +1101,18 @@ export function SettingsModuleView({
                 showTileProbabilities: !settings.showTileProbabilities,
               })
             }
-            className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-[#32C5E8]/35 text-[#F3F7FF]"
+            className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-white/15 text-[#F4F7FC]"
           >
             {settings.showTileProbabilities ? 'Visible' : 'Hidden'}
           </button>
         </div>
       </section>
 
-      <section className="lg:col-span-5 surface-panel rounded-2xl border border-[#32C5E8]/20 p-5 sm:p-6 flex flex-col gap-4">
-        <h2 className="text-lg font-bold text-[#F3F7FF]">
+      <section className="lg:col-span-5 glass-panel rounded-2xl p-5 sm:p-6 flex flex-col gap-4">
+        <h2 className="text-lg font-bold text-[#F4F7FC]">
           Local History & Export
         </h2>
-        <p className="text-xs text-[#9BB2D8] tabular-nums">
+        <p className="text-xs text-[#91A0B5] tabular-nums">
           {signals.length} signal records stored in browser storage.
         </p>
 
@@ -1254,11 +1122,11 @@ export function SettingsModuleView({
           onClick={() =>
             downloadTextFile(
               exportSignalsAsJson(signals),
-              `universal-mines-signals-${new Date().toISOString().slice(0, 10)}.json`,
+              `mines-bot-signals-${new Date().toISOString().slice(0, 10)}.json`,
               'application/json'
             )
           }
-          className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl border border-[#32C5E8]/25 text-xs font-semibold disabled:opacity-40"
+          className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl border border-white/10 hover:border-[#00D98B]/40 text-xs font-semibold disabled:opacity-40"
         >
           <Download className="w-4 h-4" aria-hidden="true" />
           <span>Export JSON</span>
@@ -1270,11 +1138,11 @@ export function SettingsModuleView({
           onClick={() =>
             downloadTextFile(
               exportSignalsAsCsv(signals),
-              `universal-mines-signals-${new Date().toISOString().slice(0, 10)}.csv`,
+              `mines-bot-signals-${new Date().toISOString().slice(0, 10)}.csv`,
               'text/csv'
             )
           }
-          className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl border border-[#32C5E8]/25 text-xs font-semibold disabled:opacity-40"
+          className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl border border-white/10 hover:border-[#00D98B]/40 text-xs font-semibold disabled:opacity-40"
         >
           <Download className="w-4 h-4" aria-hidden="true" />
           <span>Export CSV</span>
@@ -1285,13 +1153,13 @@ export function SettingsModuleView({
             type="button"
             disabled={signals.length === 0}
             onClick={() => setConfirmClear(true)}
-            className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl border border-[#D93646]/40 bg-[#D93646]/10 text-[#D93646] text-xs font-semibold disabled:opacity-40"
+            className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl border border-rose-500/40 bg-rose-500/10 text-rose-400 text-xs font-semibold disabled:opacity-40"
           >
             <Trash2 className="w-4 h-4" aria-hidden="true" />
             <span>Clear Local History</span>
           </button>
         ) : (
-          <div className="rounded-xl border border-[#D93646]/40 bg-[#D93646]/10 p-3 flex flex-col gap-2">
+          <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 p-3 flex flex-col gap-2">
             <p className="text-xs">Delete all {signals.length} local records?</p>
             <div className="flex gap-2">
               <button
@@ -1300,7 +1168,7 @@ export function SettingsModuleView({
                   onClearAllData();
                   setConfirmClear(false);
                 }}
-                className="px-3 py-1.5 rounded-lg bg-[#D93646] text-white text-xs font-bold"
+                className="px-3 py-1.5 rounded-lg bg-rose-500 text-white text-xs font-bold"
               >
                 Confirm Clear
               </button>

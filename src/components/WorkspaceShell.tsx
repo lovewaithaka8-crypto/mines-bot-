@@ -10,18 +10,31 @@ import {
 import {
   Activity,
   BarChart3,
-  Grid,
+  Bomb,
+  ChevronLeft,
+  ChevronRight,
+  Globe,
+  HelpCircle,
   History,
   Home,
   LayoutDashboard,
-  Settings,
-  Shield,
-  Sparkles,
+  MoreHorizontal,
   Plane,
-  HelpCircle,
+  Settings,
+  ShieldCheck,
+  Sparkles,
   UserRound,
+  X,
 } from 'lucide-react';
-import type { WorkspacePage } from './PublicHomepage.tsx';
+import type {
+  BettingPlatform,
+  PlatformConnection,
+  SignalRecord,
+  SyncedAviatorRound,
+  SyncedMinesRound,
+  UserSettings,
+  WorkspacePage,
+} from '../types/mines.ts';
 import { MinesBoardModule } from '../modules/minesBoardModule.tsx';
 import {
   OverviewView,
@@ -30,13 +43,12 @@ import {
   SignalControlPanel,
   SignalHistoryView,
 } from '../modules/interfaceModule.tsx';
-import type {
-  PlatformConfigsMap,
-  PlatformId,
-  PlatformIntegrationConfig,
-  SignalRecord,
-  UserSettings,
-} from '../types/mines.ts';
+import { PlatformsView } from './PlatformsView.tsx';
+import { AviatorWorkspace } from './AviatorWorkspace.tsx';
+import {
+  HelpGuideView,
+  ResponsiblePlayView,
+} from './SecondaryPages.tsx';
 import {
   clearSignalsOnBackend,
   deleteSignalOnBackend,
@@ -44,8 +56,13 @@ import {
   syncOutcomeToBackend,
   syncSignalToBackend,
 } from '../modules/databaseModule.ts';
-import { generatePlatformSignalAsync } from '../modules/signalGenerationModule.ts';
-import { detectNewRound } from '../modules/platformBridgeModule.ts';
+import { generateMinesSignalAsync } from '../modules/signalGenerationModule.ts';
+import {
+  fetchPlatformDirectory,
+  fetchSyncedPlatformData,
+  fetchUserConnections,
+  refreshPlatformConnection,
+} from '../services/platformClient.ts';
 import {
   playOutcomeMineSound,
   playOutcomeSafeSound,
@@ -54,40 +71,53 @@ import {
 import { performanceMonitor } from '../services/performanceMonitor.ts';
 
 const AdminConsoleView = lazy(() =>
-  import('./AdminConsoleView.tsx').then((m) => ({ default: m.AdminConsoleView }))
+  import('./AdminConsoleView.tsx').then((m) => ({
+    default: m.AdminConsoleView,
+  }))
 );
 
-const WORKSPACE_NAV: ReadonlyArray<{
+export interface WorkspaceSystemStatus {
+  engineReady: boolean;
+  aiAnalysisEnabled: boolean;
+  adminConfigured: boolean;
+  maintenanceNotice: string;
+}
+
+const PRIMARY_NAV: ReadonlyArray<{
   id: WorkspacePage;
   label: string;
   icon: typeof LayoutDashboard;
 }> = [
-  { id: 'overview', label: 'Home', icon: Home },
-  { id: 'analyzer', label: 'Mines Analyzer', icon: Grid },
-  { id: 'aviator', label: 'Aviator · Coming Soon', icon: Plane },
-  { id: 'history', label: 'Round History', icon: History },
+  { id: 'overview', label: 'Overview', icon: LayoutDashboard },
+  { id: 'analyzer', label: 'Mines', icon: Bomb },
+  { id: 'aviator', label: 'Aviator', icon: Plane },
+  { id: 'platforms', label: 'Platforms', icon: Globe },
+  { id: 'history', label: 'History', icon: History },
+];
+
+const SECONDARY_NAV: ReadonlyArray<{
+  id: WorkspacePage;
+  label: string;
+  icon: typeof LayoutDashboard;
+}> = [
   { id: 'performance', label: 'Performance', icon: BarChart3 },
   { id: 'settings', label: 'Settings', icon: Settings },
-  { id: 'help', label: 'Help & Guide', icon: HelpCircle },
-  { id: 'responsible', label: 'Responsible Play', icon: Shield },
-  { id: 'admin', label: 'Administration', icon: UserRound },
+  { id: 'help', label: 'Help', icon: HelpCircle },
+  { id: 'responsible', label: 'Responsible', icon: ShieldCheck },
+  { id: 'admin', label: 'Admin', icon: UserRound },
 ];
+
+const ALL_NAV = [...PRIMARY_NAV, ...SECONDARY_NAV];
 
 interface WorkspaceShellProps {
   workspacePage: WorkspacePage;
   onChangePage: (page: WorkspacePage) => void;
   onGoHome: () => void;
   settings: UserSettings;
-  platformConfigs: PlatformConfigsMap;
   signals: SignalRecord[];
-  maintenanceNotice: string;
+  systemStatus: WorkspaceSystemStatus;
   switchStartedAt: number | null;
   onUpdateSettings: (partial: Partial<UserSettings>) => void;
-  onUpdateTraps: (traps: number) => void;
-  onSavePlatformConfig: (
-    platform: PlatformId,
-    config: PlatformIntegrationConfig
-  ) => void;
   onSignalsChange: React.Dispatch<React.SetStateAction<SignalRecord[]>>;
 }
 
@@ -96,15 +126,15 @@ export default function WorkspaceShell({
   onChangePage,
   onGoHome,
   settings,
-  platformConfigs,
   signals,
-  maintenanceNotice,
+  systemStatus,
   switchStartedAt,
   onUpdateSettings,
-  onUpdateTraps,
-  onSavePlatformConfig,
   onSignalsChange,
 }: WorkspaceShellProps) {
+  const [railExpanded, setRailExpanded] = useState(false);
+  const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
+
   const [activeSignalId, setActiveSignalId] = useState<string | null>(() =>
     signals.length > 0 ? signals[0].id : null
   );
@@ -119,15 +149,23 @@ export default function WorkspaceShell({
     () => typeof document === 'undefined' || !document.hidden
   );
 
+  // Kenyan platform directory & authorized connections state
+  const [platforms, setPlatforms] = useState<BettingPlatform[]>([]);
+  const [connections, setConnections] = useState<PlatformConnection[]>([]);
+  const [syncedMinesRounds, setSyncedMinesRounds] = useState<
+    SyncedMinesRound[]
+  >([]);
+  const [syncedAviatorRounds, setSyncedAviatorRounds] = useState<
+    SyncedAviatorRound[]
+  >([]);
+  const [platformsLoading, setPlatformsLoading] = useState(false);
+  const [aviatorRefreshing, setAviatorRefreshing] = useState(false);
+
   const seedCounterRef = useRef(0);
   const activeAbortRef = useRef<AbortController | null>(null);
   const inFlightRef = useRef(false);
   const isRecordingRef = useRef(false);
   const hasActiveSignalRef = useRef(false);
-
-  const activePlatform = settings.selectedPlatform;
-  const activeTraps = settings.trapsByPlatform[activePlatform];
-  const activePlatformConfig = platformConfigs[activePlatform];
 
   const activeSignal = useMemo(
     () => signals.find((s) => s.id === activeSignalId) ?? null,
@@ -144,6 +182,45 @@ export default function WorkspaceShell({
       );
     }
   }, [switchStartedAt]);
+
+  const loadPlatformsState = useCallback(async () => {
+    setPlatformsLoading(true);
+    try {
+      const [dirRes, connRes, syncRes] = await Promise.all([
+        fetchPlatformDirectory(),
+        fetchUserConnections(),
+        fetchSyncedPlatformData(),
+      ]);
+      setPlatforms(dirRes.platforms);
+      setConnections(connRes);
+      setSyncedMinesRounds(syncRes.minesRounds);
+      setSyncedAviatorRounds(syncRes.aviatorRounds);
+    } catch {
+      // Non-blocking fallback when backend directory unavailable
+    } finally {
+      setPlatformsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadPlatformsState();
+  }, [loadPlatformsState]);
+
+  const handleRefreshAviatorFeeds = useCallback(async () => {
+    const aviatorConns = connections.filter(
+      (c) => c.selectedGame === 'aviator' && c.connectionStatus === 'Connected'
+    );
+    if (aviatorConns.length === 0) return;
+    setAviatorRefreshing(true);
+    try {
+      await Promise.all(
+        aviatorConns.map((c) => refreshPlatformConnection(c.id))
+      );
+      await loadPlatformsState();
+    } finally {
+      setAviatorRefreshing(false);
+    }
+  }, [connections, loadPlatformsState]);
 
   // Pause background automatic polling when tab is hidden
   useEffect(() => {
@@ -168,9 +245,9 @@ export default function WorkspaceShell({
   const handleUpdateSettingsWrapped = useCallback(
     (partial: Partial<UserSettings>) => {
       if (
-        'selectedPlatform' in partial ||
+        'defaultMinesCount' in partial ||
         'recommendedCount' in partial ||
-        'roundsToAnalyse' in partial ||
+        'analysisWindow' in partial ||
         'analysisEngineMode' in partial
       ) {
         cancelOngoingRequest();
@@ -179,26 +256,6 @@ export default function WorkspaceShell({
       onUpdateSettings(partial);
     },
     [cancelOngoingRequest, onUpdateSettings]
-  );
-
-  const handleUpdateTrapsWrapped = useCallback(
-    (traps: number) => {
-      cancelOngoingRequest();
-      setIsAnalyzing(false);
-      onUpdateTraps(traps);
-    },
-    [cancelOngoingRequest, onUpdateTraps]
-  );
-
-  const handleSelectPlatform = useCallback(
-    (platform: PlatformId) => {
-      if (platform === settings.selectedPlatform) return;
-      setIsRecordingOutcome(false);
-      handleUpdateSettingsWrapped({ selectedPlatform: platform });
-      const matching = signals.find((s) => s.platform === platform);
-      setActiveSignalId(matching ? matching.id : null);
-    },
-    [settings.selectedPlatform, signals, handleUpdateSettingsWrapped]
   );
 
   const triggerSignalGeneration = useCallback(
@@ -217,10 +274,11 @@ export default function WorkspaceShell({
       seedCounterRef.current += 1;
 
       try {
-        const newRecord = await generatePlatformSignalAsync({
+        const newRecord = await generateMinesSignalAsync({
+          trapsCount: settings.defaultMinesCount,
           settings,
-          platformConfig: platformConfigs[settings.selectedPlatform],
           allSignals: signals,
+          syncedMinesRounds,
           seedOffset: seedCounterRef.current,
           abortSignal: controller.signal,
         });
@@ -252,14 +310,13 @@ export default function WorkspaceShell({
     },
     [
       settings,
-      platformConfigs,
       signals,
+      syncedMinesRounds,
       cancelOngoingRequest,
       onSignalsChange,
     ]
   );
 
-  // Controlled automatic polling: paused when tab hidden or offline
   useEffect(() => {
     if (settings.generationMode !== 'automatic' || !isPageVisible) return;
     const intervalMs = Math.max(5, settings.signalRefreshIntervalSec) * 1000;
@@ -319,7 +376,6 @@ export default function WorkspaceShell({
     [onSignalsChange, settings.soundEnabled]
   );
 
-  // Stable callback identity so clicking a tile ONLY re-renders that tile
   const handleTileInteract = useCallback((index: number) => {
     if (!isRecordingRef.current || !hasActiveSignalRef.current) return;
     setRecordedOutcome((prev) => {
@@ -393,78 +449,146 @@ export default function WorkspaceShell({
     handleToggleOutcomeRecording,
   ]);
 
-  const handleSyncSnapshot = useCallback(
-    (
-      platform: PlatformId,
-      roundId: string,
-      trapsCount: number,
-      revealedSafe: number[],
-      revealedMines: number[]
-    ) => {
-      const cfg = platformConfigs[platform];
-      const isNewRound = detectNewRound(cfg.currentRoundId, roundId);
-
-      if (cfg.autoSyncTraps) {
-        onUpdateSettings({
-          selectedPlatform: platform,
-          trapsByPlatform: {
-            ...settings.trapsByPlatform,
-            [platform]: trapsCount,
-          },
-          recommendedCount: Math.min(settings.recommendedCount, 25 - trapsCount),
-        });
-      }
-
-      if (
-        activeSignal &&
-        activeSignal.platform === platform &&
-        (revealedSafe.length > 0 || revealedMines.length > 0)
-      ) {
-        evaluateSignalOutcome(activeSignal.id, revealedSafe, revealedMines);
-      }
-
-      if (
-        isNewRound &&
-        cfg.autoDetectNewRound &&
-        settings.generationMode === 'automatic'
-      ) {
-        void triggerSignalGeneration(true);
-      }
-    },
-    [
-      platformConfigs,
-      settings.trapsByPlatform,
-      settings.recommendedCount,
-      settings.generationMode,
-      activeSignal,
-      onUpdateSettings,
-      evaluateSignalOutcome,
-      triggerSignalGeneration,
-    ]
+  const connectedPlatformsCount = useMemo(
+    () =>
+      connections.filter((c) => c.connectionStatus === 'Connected').length,
+    [connections]
   );
 
+  const activeNavMeta = ALL_NAV.find((n) => n.id === workspacePage);
+
   return (
-    <div className="min-h-screen bg-[#050A12] text-[#F3F7FF] flex flex-col">
-      {/* Workspace Top Bar */}
-      <header className="sticky top-0 z-30 border-b border-emerald-400/15 bg-[#050A12]/95 backdrop-blur-2xl">
-        <div className="mx-auto max-w-[1440px] px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+    <div className="min-h-screen midnight-workspace-canvas text-[#F4F7FC] flex">
+      {/* Desktop Expandable Compact Icon-Rail Navigation */}
+      <aside
+        aria-label="Workspace Icon Rail"
+        className={`hidden lg:flex flex-col shrink-0 sticky top-0 h-screen border-r border-white/[0.08] bg-[#080F1B]/95 backdrop-blur-2xl transition-[width] duration-200 z-30 ${
+          railExpanded ? 'w-56' : 'w-[76px]'
+        }`}
+      >
+        <div className="h-16 px-3 flex items-center justify-between border-b border-white/[0.08]">
           <button
             type="button"
             onClick={onGoHome}
-            className="logo text-left text-base sm:text-lg font-extrabold tracking-tight text-[#F3F7FF] whitespace-nowrap shrink-0"
+            title="Mines Bot Homepage"
+            className="flex items-center gap-2.5 min-w-0 text-left"
           >
-            UNIVERSAL MINES AI
+            <div className="w-9 h-9 rounded-xl bg-[#00D98B]/15 border border-[#00D98B]/40 flex items-center justify-center shrink-0 emerald-icon-glow">
+              <Sparkles className="w-4 h-4 text-[#00D98B]" aria-hidden="true" />
+            </div>
+            {railExpanded && (
+              <span className="logo text-sm font-extrabold tracking-tight text-[#F4F7FC] truncate">
+                Mines Bot
+              </span>
+            )}
           </button>
 
-          <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setRailExpanded((v) => !v)}
+            aria-label={railExpanded ? 'Collapse rail' : 'Expand rail'}
+            title={railExpanded ? 'Collapse' : 'Expand'}
+            className="p-1.5 rounded-lg text-[#91A0B5] hover:text-[#F4F7FC] hover:bg-white/5 shrink-0"
+          >
+            {railExpanded ? (
+              <ChevronLeft className="w-4 h-4" aria-hidden="true" />
+            ) : (
+              <ChevronRight className="w-4 h-4" aria-hidden="true" />
+            )}
+          </button>
+        </div>
+
+        <nav className="flex-1 overflow-y-auto px-2.5 py-3 flex flex-col gap-1">
+          {PRIMARY_NAV.map((item) => {
+            const Icon = item.icon;
+            const active = workspacePage === item.id;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                title={item.label}
+                aria-label={item.label}
+                onClick={() => onChangePage(item.id)}
+                className={`group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-xs font-semibold transition-all ${
+                  railExpanded ? 'justify-start' : 'justify-center'
+                } ${
+                  active
+                    ? 'bg-[#00D98B]/14 text-[#00D98B] border border-[#00D98B]/35 emerald-glow'
+                    : 'text-[#91A0B5] hover:text-[#F4F7FC] hover:bg-white/5 border border-transparent'
+                }`}
+              >
+                <Icon className="w-4 h-4 shrink-0" aria-hidden="true" />
+                {railExpanded && <span className="truncate">{item.label}</span>}
+              </button>
+            );
+          })}
+
+          <div className="my-2 border-t border-white/[0.08]" />
+
+          {SECONDARY_NAV.map((item) => {
+            const Icon = item.icon;
+            const active = workspacePage === item.id;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                title={item.label}
+                aria-label={item.label}
+                onClick={() => onChangePage(item.id)}
+                className={`group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-xs font-semibold transition-all ${
+                  railExpanded ? 'justify-start' : 'justify-center'
+                } ${
+                  active
+                    ? 'bg-[#00D98B]/14 text-[#00D98B] border border-[#00D98B]/35 emerald-glow'
+                    : 'text-[#91A0B5] hover:text-[#F4F7FC] hover:bg-white/5 border border-transparent'
+                }`}
+              >
+                <Icon className="w-4 h-4 shrink-0" aria-hidden="true" />
+                {railExpanded && <span className="truncate">{item.label}</span>}
+              </button>
+            );
+          })}
+        </nav>
+
+        <div className="p-2.5 border-t border-white/[0.08]">
+          <button
+            type="button"
+            title="Public Homepage"
+            onClick={onGoHome}
+            className={`w-full flex items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-semibold text-[#91A0B5] hover:text-[#F4F7FC] hover:bg-white/5 ${
+              railExpanded ? 'justify-start' : 'justify-center'
+            }`}
+          >
+            <Home className="w-4 h-4 shrink-0" aria-hidden="true" />
+            {railExpanded && <span>Home</span>}
+          </button>
+        </div>
+      </aside>
+
+      {/* Main Column */}
+      <div className="flex-1 min-w-0 flex flex-col">
+        {/* Top Workspace Bar */}
+        <header className="sticky top-0 z-20 h-16 border-b border-white/[0.08] bg-[#050A12]/90 backdrop-blur-xl px-4 sm:px-6 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 min-w-0">
             <button
               type="button"
               onClick={onGoHome}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[#8B5CF6]/25 text-xs font-semibold text-[#A7B6CE] hover:text-[#06101D] whitespace-nowrap"
+              className="lg:hidden inline-flex items-center gap-2 font-display font-extrabold text-sm text-[#F4F7FC]"
             >
-              <Home className="w-3.5 h-3.5" aria-hidden="true" />
-              <span>Homepage</span>
+              <Sparkles className="w-4 h-4 text-[#00D98B]" aria-hidden="true" />
+              <span>Mines Bot</span>
             </button>
+            <h1 className="font-display text-base sm:text-lg font-bold text-[#F4F7FC] truncate">
+              {activeNavMeta?.label ?? 'Workspace'}
+            </h1>
+          </div>
+
+          <div className="flex items-center gap-2.5 shrink-0">
+            <div className="hidden sm:inline-flex items-center gap-1.5 text-xs text-[#91A0B5] px-2.5 py-1 rounded-lg border border-white/[0.08] bg-[#0A111C]">
+              <Activity className="w-3.5 h-3.5 text-[#00D98B]" aria-hidden="true" />
+              <span className="tabular-nums">{signals.length} Signals</span>
+            </div>
+
             <button
               type="button"
               onClick={() => {
@@ -472,116 +596,52 @@ export default function WorkspaceShell({
                 void triggerSignalGeneration(false);
               }}
               disabled={isAnalyzing}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#00FF88] hover:bg-emerald-400 disabled:opacity-60 text-[#06101D] text-xs font-bold whitespace-nowrap"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#00D98B] hover:bg-[#00c47d] disabled:opacity-60 text-[#050A12] text-xs font-bold emerald-glow transition-colors"
             >
               <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
-              <span>{isAnalyzing ? 'Analysing...' : 'Generate Signal'}</span>
+              <span>{isAnalyzing ? 'Analysing...' : 'Generate'}</span>
             </button>
           </div>
-        </div>
+        </header>
 
-        {/* Icon-led mobile navigation */}
-        <nav aria-label="Workspace mobile navigation" className="fixed bottom-0 left-0 right-0 z-40 flex lg:hidden items-center justify-between gap-1 border-t border-emerald-400/20 bg-[#080D18]/95 backdrop-blur-2xl px-1.5 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-[0_-10px_36px_rgba(0,255,136,0.08)]">
-          {WORKSPACE_NAV.map((item) => {
-            const Icon = item.icon;
-            const active = workspacePage === item.id;
-            return (
-              <button key={item.id} type="button" aria-label={item.label} title={item.label} onClick={() => onChangePage(item.id)}
-                className={`flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-xl px-1 py-2 text-[9px] font-semibold transition-all ${
-                  active ? 'bg-emerald-400/10 text-emerald-300 ring-1 ring-emerald-300/25 shadow-[0_0_18px_rgba(0,255,136,0.13)]' : 'text-slate-400 hover:text-white'
-                }`}>
-                <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
-                <span className="max-w-full truncate">{item.label}</span>
-              </button>
-            );
-          })}
-        </nav>
-      </header>
-
-      {maintenanceNotice && (
-        <div className="bg-orange-500/15 border-b border-orange-400/30 px-4 py-2 text-center text-xs text-orange-200">
-          {maintenanceNotice}
-        </div>
-      )}
-
-      <div className="flex-1 mx-auto w-full max-w-[1440px] px-4 sm:px-6 lg:px-8 py-6 pb-24 lg:pb-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Desktop Workspace Sidebar */}
-        <aside
-          aria-label="Dashboard Navigation"
-          className="hidden lg:flex lg:col-span-3 xl:col-span-2 rounded-2xl border border-white/[0.06] bg-[#0A111C]/90 backdrop-blur-2xl p-3 flex-col gap-1 sticky top-20 shadow-[0_12px_48px_rgba(0,0,0,0.3)]"
-        >
-          {WORKSPACE_NAV.map((item) => {
-            const Icon = item.icon;
-            const active = workspacePage === item.id;
-            return (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => onChangePage(item.id)}
-                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-semibold transition-colors text-left ${
-                  active
-                    ? 'bg-emerald-400/10 text-emerald-300 border border-emerald-300/20 shadow-[0_0_20px_rgba(0,255,136,0.14)]'
-                    : 'text-[#9BB2D8] hover:bg-white/5 hover:text-[#F3F7FF]'
-                }`}
-              >
-                <Icon className="w-4 h-4 shrink-0" aria-hidden="true" />
-                <span className="truncate">{item.label}</span>
-              </button>
-            );
-          })}
-        </aside>
-
-        {/* Main Workspace Content */}
-        <main className="lg:col-span-9 xl:col-span-10 flex flex-col gap-5">
-          <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-emerald-400/15">
-            <div>
-              <h1 className="font-display text-xl font-bold text-[#F3F7FF]">
-                {WORKSPACE_NAV.find((n) => n.id === workspacePage)?.label}
-              </h1>
-              <p className="text-xs text-[#9BB2D8]">
-                Direct access workspace · Zero fabricated data ·{' '}
-                {activePlatform === 'onewin' ? '1win Mines' : 'BGR8 Mines'} selected
-              </p>
-            </div>
-            <div className="inline-flex items-center gap-1.5 text-xs text-[#9BB2D8]">
-              <Activity className="w-3.5 h-3.5 text-[#00FF88]" aria-hidden="true" />
-              <span className="tabular-nums">{signals.length} Signals Stored</span>
-            </div>
+        {systemStatus.maintenanceNotice && (
+          <div className="bg-amber-500/15 border-b border-amber-400/30 px-4 py-2 text-center text-xs text-amber-200">
+            {systemStatus.maintenanceNotice}
           </div>
+        )}
 
+        {/* Workspace Content */}
+        <main className="flex-1 mx-auto w-full max-w-[1440px] px-4 sm:px-6 lg:px-8 py-6 pb-28 lg:pb-8">
           {workspacePage === 'overview' && (
             <OverviewView
               signals={signals}
-              platformConfigs={platformConfigs}
-              selectedPlatform={activePlatform}
+              connectedPlatformsCount={connectedPlatformsCount}
               onNavigate={onChangePage}
             />
           )}
 
-          {(workspacePage === 'analyzer' || workspacePage === 'generate') && (
+          {workspacePage === 'analyzer' && (
             <div className="grid grid-cols-1 xl:grid-cols-12 gap-5 items-start">
               <div className="xl:col-span-4 order-2 xl:order-1">
                 <SignalControlPanel
                   settings={settings}
-                  platformConfig={activePlatformConfig}
                   activeSignal={activeSignal}
                   isAnalyzing={isAnalyzing}
                   apiError={apiError}
-                  onSelectPlatform={handleSelectPlatform}
+                  syncedMinesRoundsCount={syncedMinesRounds.length}
                   onUpdateSettings={handleUpdateSettingsWrapped}
-                  onUpdateTraps={handleUpdateTrapsWrapped}
                   onGenerateSignal={() => void triggerSignalGeneration(false)}
                   onRefreshAnalysis={() => void triggerSignalGeneration(true)}
                   onClearBoard={handleClearBoard}
                   onDismissError={() => setApiError(null)}
+                  onOpenPlatforms={() => onChangePage('platforms')}
                 />
               </div>
 
               <div className="xl:col-span-8 order-1 xl:order-2">
                 <MinesBoardModule
-                  platform={activePlatform}
                   activeSignal={activeSignal}
-                  trapsCount={activeTraps}
+                  trapsCount={settings.defaultMinesCount}
                   recommendedCount={settings.recommendedCount}
                   showTileProbabilities={settings.showTileProbabilities}
                   isAnalyzing={isAnalyzing}
@@ -599,15 +659,23 @@ export default function WorkspaceShell({
           )}
 
           {workspacePage === 'aviator' && (
-            <div className="min-h-[55vh] flex items-center justify-center">
-              <section className="relative overflow-hidden w-full max-w-2xl rounded-3xl border border-[#8B5CF6]/35 bg-[#101A2C]/80 backdrop-blur-xl p-8 sm:p-12 text-center shadow-[0_0_45px_rgba(139,92,246,0.12)]">
-                <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl border border-red-400/30 bg-red-500/10"><Plane className="h-8 w-8 text-red-400" /></div>
-                <div className="inline-flex rounded-full border border-[#8B5CF6]/40 bg-[#8B5CF6]/10 px-3 py-1 text-xs font-bold tracking-[0.16em] text-[#C4A5FF]">COMING SOON</div>
-                <h2 className="mt-4 text-3xl sm:text-4xl font-extrabold text-white">Aviator Intelligence</h2>
-                <p className="mx-auto mt-3 max-w-lg text-sm leading-6 text-[#9BB2D8]">The Aviator workspace is not available yet. No predictions or live signals are generated here.</p>
-                <button type="button" onClick={() => onChangePage('analyzer')} className="mt-7 inline-flex items-center gap-2 rounded-xl bg-[#00FF88] px-5 py-3 text-sm font-bold text-[#06101D]">Go to Mines Analyzer <Grid className="h-4 w-4" /></button>
-              </section>
-            </div>
+            <AviatorWorkspace
+              aviatorRounds={syncedAviatorRounds}
+              connections={connections}
+              refreshing={aviatorRefreshing}
+              onRefreshFeeds={handleRefreshAviatorFeeds}
+              onNavigate={onChangePage}
+            />
+          )}
+
+          {workspacePage === 'platforms' && (
+            <PlatformsView
+              platforms={platforms}
+              connections={connections}
+              loading={platformsLoading}
+              onRefreshAll={loadPlatformsState}
+              onNavigate={onChangePage}
+            />
           )}
 
           {workspacePage === 'history' && (
@@ -616,9 +684,6 @@ export default function WorkspaceShell({
               onInspectSignal={(id, openLog) => {
                 const target = signals.find((s) => s.id === id);
                 if (target) {
-                  handleUpdateSettingsWrapped({
-                    selectedPlatform: target.platform,
-                  });
                   setActiveSignalId(id);
                   handleToggleOutcomeRecording(openLog);
                   onChangePage('analyzer');
@@ -662,10 +727,18 @@ export default function WorkspaceShell({
             />
           )}
 
+          {workspacePage === 'help' && (
+            <HelpGuideView onNavigate={onChangePage} />
+          )}
+
+          {workspacePage === 'responsible' && (
+            <ResponsiblePlayView onNavigate={onChangePage} />
+          )}
+
           {workspacePage === 'admin' && (
             <Suspense
               fallback={
-                <div className="surface-panel rounded-2xl border border-[#32C5E8]/20 p-6 text-xs text-[#9BB2D8]">
+                <div className="glass-panel rounded-2xl p-6 text-xs text-[#91A0B5]">
                   Loading Administration Console...
                 </div>
               }
@@ -675,6 +748,114 @@ export default function WorkspaceShell({
           )}
         </main>
       </div>
+
+      {/* Mobile Floating Bottom Navigation */}
+      <nav
+        aria-label="Mobile workspace navigation"
+        className="fixed bottom-3 left-3 right-3 z-40 lg:hidden rounded-2xl border border-[#00D98B]/25 bg-[#080F1B]/95 backdrop-blur-2xl px-1.5 py-1.5 shadow-[0_12px_40px_rgba(0,0,0,0.55)] flex items-center justify-around gap-1"
+      >
+        {PRIMARY_NAV.slice(0, 4).map((item) => {
+          const Icon = item.icon;
+          const active = workspacePage === item.id;
+          return (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => {
+                setMobileMoreOpen(false);
+                onChangePage(item.id);
+              }}
+              className={`flex-1 flex flex-col items-center justify-center gap-0.5 py-1.5 rounded-xl text-[10px] font-semibold transition-colors ${
+                active
+                  ? 'bg-[#00D98B]/15 text-[#00D98B]'
+                  : 'text-[#91A0B5] hover:text-[#F4F7FC]'
+              }`}
+            >
+              <Icon className="w-4 h-4" aria-hidden="true" />
+              <span className="truncate">{item.label}</span>
+            </button>
+          );
+        })}
+
+        <button
+          type="button"
+          onClick={() => setMobileMoreOpen((v) => !v)}
+          className={`flex-1 flex flex-col items-center justify-center gap-0.5 py-1.5 rounded-xl text-[10px] font-semibold transition-colors ${
+            mobileMoreOpen ||
+            workspacePage === 'history' ||
+            SECONDARY_NAV.some((s) => s.id === workspacePage)
+              ? 'bg-[#8B5CF6]/20 text-[#C4B5FD]'
+              : 'text-[#91A0B5] hover:text-[#F4F7FC]'
+          }`}
+        >
+          <MoreHorizontal className="w-4 h-4" aria-hidden="true" />
+          <span>More</span>
+        </button>
+      </nav>
+
+      {/* Mobile More Drawer */}
+      {mobileMoreOpen && (
+        <div
+          className="fixed inset-0 z-50 lg:hidden bg-black/70 backdrop-blur-sm flex items-end p-3"
+          onClick={() => setMobileMoreOpen(false)}
+        >
+          <div
+            className="w-full rounded-2xl border border-white/15 bg-[#0A111C] p-4 flex flex-col gap-3"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-[#F4F7FC]">
+                More Navigation
+              </span>
+              <button
+                type="button"
+                onClick={() => setMobileMoreOpen(false)}
+                aria-label="Close menu"
+                className="p-1 rounded-lg text-[#91A0B5] hover:text-[#F4F7FC]"
+              >
+                <X className="w-4 h-4" aria-hidden="true" />
+              </button>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              {[{ id: 'history' as WorkspacePage, label: 'History', icon: History }, ...SECONDARY_NAV].map(
+                (item) => {
+                  const Icon = item.icon;
+                  const active = workspacePage === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => {
+                        setMobileMoreOpen(false);
+                        onChangePage(item.id);
+                      }}
+                      className={`flex flex-col items-center justify-center gap-1.5 p-3 rounded-xl border text-[11px] font-semibold ${
+                        active
+                          ? 'border-[#00D98B]/50 bg-[#00D98B]/15 text-[#00D98B]'
+                          : 'border-white/10 bg-[#050A12] text-[#91A0B5]'
+                      }`}
+                    >
+                      <Icon className="w-4 h-4" aria-hidden="true" />
+                      <span>{item.label}</span>
+                    </button>
+                  );
+                }
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileMoreOpen(false);
+                  onGoHome();
+                }}
+                className="flex flex-col items-center justify-center gap-1.5 p-3 rounded-xl border border-white/10 bg-[#050A12] text-[#91A0B5] text-[11px] font-semibold"
+              >
+                <Home className="w-4 h-4" aria-hidden="true" />
+                <span>Homepage</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
