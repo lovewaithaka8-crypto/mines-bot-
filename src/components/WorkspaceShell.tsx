@@ -605,6 +605,18 @@ export default function WorkspaceShell({
             </div>
           )}
 
+          {workspacePage === 'aviator' && (
+            <div className="min-h-[55vh] flex items-center justify-center">
+              <section className="relative overflow-hidden w-full max-w-2xl rounded-3xl border border-[#8B5CF6]/35 bg-[#101A2C]/80 backdrop-blur-xl p-8 sm:p-12 text-center shadow-[0_0_45px_rgba(139,92,246,0.12)]">
+                <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl border border-red-400/30 bg-red-500/10"><Plane className="h-8 w-8 text-red-400" /></div>
+                <div className="inline-flex rounded-full border border-[#8B5CF6]/40 bg-[#8B5CF6]/10 px-3 py-1 text-xs font-bold tracking-[0.16em] text-[#C4A5FF]">COMING SOON</div>
+                <h2 className="mt-4 text-3xl sm:text-4xl font-extrabold text-white">Aviator Intelligence</h2>
+                <p className="mx-auto mt-3 max-w-lg text-sm leading-6 text-[#9BB2D8]">The Aviator workspace is not available yet. No predictions or live signals are generated here.</p>
+                <button type="button" onClick={() => onChangePage('analyzer')} className="mt-7 inline-flex items-center gap-2 rounded-xl bg-[#00FF88] px-5 py-3 text-sm font-bold text-[#06101D]">Go to Mines Analyzer <Grid className="h-4 w-4" /></button>
+              </section>
+            </div>
+          )}
+
           {workspacePage === 'history' && (
             <SignalHistoryView
               signals={signals}
