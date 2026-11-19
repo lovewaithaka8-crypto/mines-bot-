@@ -30,7 +30,7 @@ function HeroGemIcon() {
     >
       <polygon
         points="18,3 31,12 26,31 10,31 5,12"
-        fill="#16A765"
+        fill="#00FF88"
         stroke="#A7F3D0"
         strokeWidth="1.5"
       />
@@ -40,16 +40,7 @@ function HeroGemIcon() {
   );
 }
 
-export type WorkspacePage =
-  | 'overview'
-  | 'analyzer'
-  | 'bgr8'
-  | 'onewin'
-  | 'generate'
-  | 'history'
-  | 'performance'
-  | 'settings'
-  | 'admin';
+export type WorkspacePage = 'overview' | 'analyzer' | 'aviator' | 'generate' | 'history' | 'performance' | 'settings' | 'help' | 'responsible' | 'admin';
 
 interface PublicHomepageProps {
   platformConfigs: PlatformConfigsMap;
@@ -69,7 +60,7 @@ const LEGAL_CONTENT: Record<
   { title: string; body: string[] }
 > = {
   about: {
-    title: 'About Universal Mines AI',
+    title: 'About Mines Intelligence',
     body: [
       'Universal Mines AI is a probability and statistical intelligence platform designed for 5 × 5 Mines games across BGR8 Mines and 1win Mines.',
       'Our engine strictly separates combinatorial mathematical probability from verified out-of-sample outcomes. We never claim access to hidden server-side mine seeds, never fabricate accuracy percentages, and never place automated real-money wagers.',
@@ -114,7 +105,7 @@ function PlatformMark({ platform }: { platform: PlatformId }) {
     );
   }
   return (
-    <div className="w-11 h-11 rounded-xl bg-[#00FF88]/20 border border-[#32C5E8]/40 flex items-center justify-center font-display font-extrabold text-sm text-[#32C5E8]">
+    <div className="w-11 h-11 rounded-xl bg-[#00FF88]/20 border border-[#8B5CF6]/40 flex items-center justify-center font-display font-extrabold text-sm text-[#8B5CF6]">
       1W
     </div>
   );
@@ -153,16 +144,10 @@ export function PublicHomepage({
       return;
     }
     if (selectedGame === 'aviator') {
-      setSelectionNotice('Aviator is selected. The current workspace supports Mines analysis only; Aviator prediction tools are not yet implemented.');
+      setSelectionNotice('Aviator is Coming Soon. Please choose Mines to continue..');
       return;
     }
-    if (selectedSite.toLowerCase() === 'betgr8' || selectedSite.toLowerCase() === 'bgr8') {
-      onOpenWorkspace('bgr8');
-    } else if (selectedSite.toLowerCase() === '1win') {
-      onOpenWorkspace('onewin');
-    } else {
-      onOpenWorkspace('analyzer');
-    }
+    onOpenWorkspace('analyzer');
   }
 
   async function handleSubmitContact(e: React.FormEvent) {
@@ -211,13 +196,13 @@ export function PublicHomepage({
   return (
     <div className="min-h-screen bg-[#080F20] text-[#F3F7FF] flex flex-col">
       {/* 3-Zone Top Navigation Bar */}
-      <header className="sticky top-0 z-30 border-b border-[#32C5E8]/15 bg-[#080F20]/90 backdrop-blur-xl">
+      <header className="sticky top-0 z-30 border-b border-[#8B5CF6]/15 bg-[#080F20]/90 backdrop-blur-xl">
         <div className="mx-auto max-w-[1440px] px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-6">
           <a
             href="#home"
             className="logo text-base sm:text-lg font-extrabold tracking-tight text-[#F3F7FF] whitespace-nowrap shrink-0"
           >
-            UNIVERSAL MINES AI
+            MINES INTELLIGENCE
           </a>
 
           <nav
@@ -244,7 +229,7 @@ export function PublicHomepage({
 
             {/* Tactical 5x5 Visual Matrix Showcase (Static Architectural Illustration) */}
             <div className="lg:col-span-6">
-              <div className="surface-panel rounded-3xl border border-[#32C5E8]/25 p-5 sm:p-6 shadow-[0_0_40px_rgba(50,197,232,0.1)]">
+              <div className="surface-panel rounded-3xl border border-[#8B5CF6]/25 p-5 sm:p-6 shadow-[0_0_40px_rgba(50,197,232,0.1)]">
                 <div className="flex items-center justify-between text-xs text-[#9BB2D8] mb-4">
                   <span className="font-semibold text-[#F3F7FF]">
                     5 × 5 Statistical Signal Matrix
@@ -260,10 +245,10 @@ export function PublicHomepage({
                         key={i}
                         className={`aspect-square rounded-xl border flex items-center justify-center ${
                           isRec
-                            ? 'bg-[#16A765]/22 border-[#16A765] shadow-[0_0_16px_rgba(22,167,101,0.28)]'
+                            ? 'bg-[#00FF88]/22 border-[#00FF88] shadow-[0_0_16px_rgba(22,167,101,0.28)]'
                             : isUncertain
                               ? 'bg-orange-500/18 border-orange-400/75'
-                              : 'tile-unopened border-[#32C5E8]/35'
+                              : 'tile-unopened border-[#8B5CF6]/35'
                         }`}
                       >
                         {isRec ? (
@@ -274,7 +259,7 @@ export function PublicHomepage({
                           </span>
                         ) : (
                           <Sparkles
-                            className="w-4 h-4 text-[#32C5E8]/45"
+                            className="w-4 h-4 text-[#8B5CF6]/45"
                             aria-hidden="true"
                           />
                         )}
@@ -282,12 +267,12 @@ export function PublicHomepage({
                     );
                   })}
                 </div>
-                <div className="mt-4 pt-3 border-t border-[#32C5E8]/15 flex flex-wrap items-center justify-between gap-2 text-xs text-[#9BB2D8]">
+                <div className="mt-4 pt-3 border-t border-[#8B5CF6]/15 flex flex-wrap items-center justify-between gap-2 text-xs text-[#9BB2D8]">
                   <span>Visual layout preview · Real signals computed in Analyzer</span>
                   <button
                     type="button"
                     onClick={() => onOpenWorkspace('generate')}
-                    className="text-[#32C5E8] font-semibold hover:underline"
+                    className="text-[#8B5CF6] font-semibold hover:underline"
                   >
                     Launch Generator →
                   </button>
@@ -300,17 +285,17 @@ export function PublicHomepage({
         {/* Site Search and Game Selection Flow */}
         <section
           id="platform-selector"
-          className="mx-auto max-w-[1440px] px-4 sm:px-6 lg:px-8 py-12 sm:py-16 border-b border-[#32C5E8]/10"
+          className="mx-auto max-w-[1440px] px-4 sm:px-6 lg:px-8 py-12 sm:py-16 border-b border-[#8B5CF6]/10"
         >
           <div className="max-w-3xl mx-auto">
             <div className="text-center mb-8">
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#32C5E8]">Start Here</p>
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#8B5CF6]">Start Here</p>
               <h2 className="font-display text-2xl sm:text-3xl font-extrabold mt-2">Choose Your Betting Site</h2>
               <p className="text-sm text-[#9BB2D8] mt-2">Search your platform, select a game, then continue to its workspace.</p>
             </div>
-            <div className="surface-panel rounded-2xl border border-[#32C5E8]/20 p-4 sm:p-6 flex flex-col gap-5">
-              <label className="flex items-center gap-3 rounded-xl border border-[#32C5E8]/25 bg-[#080F20] px-4 py-3">
-                <Search className="w-4 h-4 text-[#32C5E8]" aria-hidden="true" />
+            <div className="surface-panel rounded-2xl border border-[#8B5CF6]/20 p-4 sm:p-6 flex flex-col gap-5">
+              <label className="flex items-center gap-3 rounded-xl border border-[#8B5CF6]/25 bg-[#080F20] px-4 py-3">
+                <Search className="w-4 h-4 text-[#8B5CF6]" aria-hidden="true" />
                 <input
                   type="search"
                   value={siteSearch}
@@ -326,7 +311,7 @@ export function PublicHomepage({
                     key={site}
                     type="button"
                     onClick={() => { setSelectedSite(site); setSelectionNotice(''); }}
-                    className={`rounded-xl border px-3 py-3 text-sm font-semibold text-left transition-all ${selectedSite === site ? 'border-[#16A765] bg-[#16A765]/15 text-emerald-200 ring-1 ring-[#16A765]/40' : 'border-[#32C5E8]/15 bg-[#10182B] text-[#C6D5EE] hover:border-[#32C5E8]/50'}`}
+                    className={`rounded-xl border px-3 py-3 text-sm font-semibold text-left transition-all ${selectedSite === site ? 'border-[#00FF88] bg-[#00FF88]/15 text-emerald-200 ring-1 ring-[#00FF88]/40' : 'border-[#8B5CF6]/15 bg-[#10182B] text-[#C6D5EE] hover:border-[#8B5CF6]/50'}`}
                   >
                     {site}
                   </button>
@@ -335,24 +320,24 @@ export function PublicHomepage({
                   <p className="col-span-full text-center text-sm text-[#9BB2D8] py-5">No matching site found. Try a different name.</p>
                 )}
               </div>
-              <div className="border-t border-[#32C5E8]/15 pt-5">
+              <div className="border-t border-[#8B5CF6]/15 pt-5">
                 <h3 className="text-sm font-bold mb-3">Choose Game</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <button type="button" onClick={() => { setSelectedGame('aviator'); setSelectionNotice('Aviator is coming soon. Mines analysis is currently available.'); }}
-                    className={`rounded-xl border p-4 text-left flex items-center gap-3 transition-all ${selectedGame === 'aviator' ? 'border-[#16A765] bg-[#16A765]/10' : 'border-[#32C5E8]/20 bg-[#10182B] hover:border-[#32C5E8]/50'}`}>
+                    className={`rounded-xl border p-4 text-left flex items-center gap-3 transition-all ${selectedGame === 'aviator' ? 'border-[#00FF88] bg-[#00FF88]/10' : 'border-[#8B5CF6]/20 bg-[#10182B] hover:border-[#8B5CF6]/50'}`}>
                     <div className="w-11 h-11 rounded-xl bg-red-500/15 flex items-center justify-center"><Plane className="w-5 h-5 text-red-300" /></div>
                     <div><span className="font-bold text-sm">Aviator</span><p className="text-xs text-[#9BB2D8] mt-1">Coming soon</p></div>
                   </button>
                   <button type="button" onClick={() => { setSelectedGame('mines'); setSelectionNotice(''); }}
-                    className={`rounded-xl border p-4 text-left flex items-center gap-3 transition-all ${selectedGame === 'mines' ? 'border-[#16A765] bg-[#16A765]/10' : 'border-[#32C5E8]/20 bg-[#10182B] hover:border-[#32C5E8]/50'}`}>
-                    <div className="w-11 h-11 rounded-xl bg-[#16A765]/15 flex items-center justify-center"><Gamepad2 className="w-5 h-5 text-[#5FE3A0]" /></div>
+                    className={`rounded-xl border p-4 text-left flex items-center gap-3 transition-all ${selectedGame === 'mines' ? 'border-[#00FF88] bg-[#00FF88]/10' : 'border-[#8B5CF6]/20 bg-[#10182B] hover:border-[#8B5CF6]/50'}`}>
+                    <div className="w-11 h-11 rounded-xl bg-[#00FF88]/15 flex items-center justify-center"><Gamepad2 className="w-5 h-5 text-[#5FE3A0]" /></div>
                     <div><span className="font-bold text-sm">Mines</span><p className="text-xs text-[#9BB2D8] mt-1">5 × 5 mines analyzer</p></div>
                   </button>
                 </div>
               </div>
               {selectionNotice && <p role="status" className="rounded-xl border border-orange-400/30 bg-orange-500/10 px-4 py-3 text-sm text-orange-200">{selectionNotice}</p>}
               <button type="button" onClick={continueSelection}
-                className="w-full sm:w-auto sm:self-end inline-flex items-center justify-center gap-2 rounded-xl bg-[#087AFF] hover:bg-blue-500 px-5 py-3 text-sm font-bold text-white transition-colors">
+                className="w-full sm:w-auto sm:self-end inline-flex items-center justify-center gap-2 rounded-xl bg-[#00FF88] hover:bg-emerald-400 px-5 py-3 text-sm font-bold text-[#06101D] transition-colors">
                 Continue <ArrowRight className="w-4 h-4" />
               </button>
             </div>
@@ -363,7 +348,7 @@ export function PublicHomepage({
         {/* About & Features Bento */}
         <section
           id="about"
-          className="mx-auto max-w-[1440px] px-4 sm:px-6 lg:px-8 py-14 sm:py-16 border-b border-[#32C5E8]/10"
+          className="mx-auto max-w-[1440px] px-4 sm:px-6 lg:px-8 py-14 sm:py-16 border-b border-[#8B5CF6]/10"
         >
           <div id="features" className="max-w-2xl mb-8">
             <h2 className="font-display text-2xl sm:text-3xl font-bold text-[#F3F7FF]">
@@ -416,9 +401,9 @@ export function PublicHomepage({
               return (
                 <div
                   key={feat.title}
-                  className="surface-card rounded-2xl border border-[#32C5E8]/15 p-5 flex flex-col gap-2.5"
+                  className="surface-card rounded-2xl border border-[#8B5CF6]/15 p-5 flex flex-col gap-2.5"
                 >
-                  <Icon className="w-5 h-5 text-[#32C5E8]" aria-hidden="true" />
+                  <Icon className="w-5 h-5 text-[#8B5CF6]" aria-hidden="true" />
                   <h3 className="text-sm font-bold text-[#F3F7FF]">
                     {feat.title}
                   </h3>
@@ -434,7 +419,7 @@ export function PublicHomepage({
         {/* How It Works */}
         <section
           id="how-it-works"
-          className="mx-auto max-w-[1440px] px-4 sm:px-6 lg:px-8 py-14 sm:py-16 border-b border-[#32C5E8]/10"
+          className="mx-auto max-w-[1440px] px-4 sm:px-6 lg:px-8 py-14 sm:py-16 border-b border-[#8B5CF6]/10"
         >
           <div className="max-w-2xl mb-8">
             <h2 className="font-display text-2xl sm:text-3xl font-bold text-[#F3F7FF]">
@@ -455,7 +440,7 @@ export function PublicHomepage({
               {
                 num: '02.',
                 title: 'Select Platform',
-                text: 'Choose BGR8 Mines or 1win Mines and configure optional authorized endpoints.',
+                text: 'Choose a betting site and game to open the Mines workspace.',
               },
               {
                 num: '03.',
@@ -475,9 +460,9 @@ export function PublicHomepage({
             ].map((step) => (
               <div
                 key={step.num}
-                className="surface-panel rounded-2xl border border-[#32C5E8]/20 p-5 flex flex-col gap-2"
+                className="surface-panel rounded-2xl border border-[#8B5CF6]/20 p-5 flex flex-col gap-2"
               >
-                <span className="text-xs font-bold text-[#32C5E8] tabular-nums">
+                <span className="text-xs font-bold text-[#8B5CF6] tabular-nums">
                   {step.num}
                 </span>
                 <h3 className="text-sm font-bold text-[#F3F7FF]">
@@ -498,7 +483,7 @@ export function PublicHomepage({
         >
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
             <div className="lg:col-span-5 flex flex-col gap-3">
-              <div className="inline-flex items-center gap-2 text-xs font-semibold text-[#32C5E8]">
+              <div className="inline-flex items-center gap-2 text-xs font-semibold text-[#8B5CF6]">
                 <Mail className="w-4 h-4" aria-hidden="true" />
                 <span>Support Inquiries</span>
               </div>
@@ -512,7 +497,7 @@ export function PublicHomepage({
 
             <form
               onSubmit={handleSubmitContact}
-              className="lg:col-span-7 surface-panel rounded-2xl border border-[#32C5E8]/20 p-6 flex flex-col gap-4"
+              className="lg:col-span-7 surface-panel rounded-2xl border border-[#8B5CF6]/20 p-6 flex flex-col gap-4"
             >
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="flex flex-col gap-1.5">
@@ -526,7 +511,7 @@ export function PublicHomepage({
                     value={contactName}
                     onChange={(e) => setContactName(e.target.value)}
                     placeholder="Alex Morgan"
-                    className="px-3.5 py-2.5 rounded-xl border border-[#32C5E8]/25 bg-[#080F20] text-sm text-[#F3F7FF] focus:outline-none focus:border-[#32C5E8]"
+                    className="px-3.5 py-2.5 rounded-xl border border-[#8B5CF6]/25 bg-[#080F20] text-sm text-[#F3F7FF] focus:outline-none focus:border-[#8B5CF6]"
                   />
                 </div>
                 <div className="flex flex-col gap-1.5">
@@ -540,7 +525,7 @@ export function PublicHomepage({
                     value={contactEmail}
                     onChange={(e) => setContactEmail(e.target.value)}
                     placeholder="alex@example.com"
-                    className="px-3.5 py-2.5 rounded-xl border border-[#32C5E8]/25 bg-[#080F20] text-sm text-[#F3F7FF] focus:outline-none focus:border-[#32C5E8]"
+                    className="px-3.5 py-2.5 rounded-xl border border-[#8B5CF6]/25 bg-[#080F20] text-sm text-[#F3F7FF] focus:outline-none focus:border-[#8B5CF6]"
                   />
                 </div>
               </div>
@@ -553,7 +538,7 @@ export function PublicHomepage({
                   id="c-subject"
                   value={contactSubject}
                   onChange={(e) => setContactSubject(e.target.value)}
-                  className="px-3.5 py-2.5 rounded-xl border border-[#32C5E8]/25 bg-[#080F20] text-sm text-[#F3F7FF] focus:outline-none focus:border-[#32C5E8]"
+                  className="px-3.5 py-2.5 rounded-xl border border-[#8B5CF6]/25 bg-[#080F20] text-sm text-[#F3F7FF] focus:outline-none focus:border-[#8B5CF6]"
                 >
                   <option value="Platform Support">Platform Support</option>
                   
@@ -576,13 +561,13 @@ export function PublicHomepage({
                   value={contactMessage}
                   onChange={(e) => setContactMessage(e.target.value)}
                   placeholder="Describe your support question..."
-                  className="px-3.5 py-2.5 rounded-xl border border-[#32C5E8]/25 bg-[#080F20] text-sm text-[#F3F7FF] focus:outline-none focus:border-[#32C5E8]"
+                  className="px-3.5 py-2.5 rounded-xl border border-[#8B5CF6]/25 bg-[#080F20] text-sm text-[#F3F7FF] focus:outline-none focus:border-[#8B5CF6]"
                 />
               </div>
 
               {contactStatus.type === 'success' && (
-                <div className="rounded-xl border border-[#16A765]/50 bg-[#16A765]/15 px-3.5 py-2.5 text-xs text-emerald-200 flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-[#16A765]" aria-hidden="true" />
+                <div className="rounded-xl border border-[#00FF88]/50 bg-[#00FF88]/15 px-3.5 py-2.5 text-xs text-emerald-200 flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-[#00FF88]" aria-hidden="true" />
                   <span>{contactStatus.text}</span>
                 </div>
               )}
@@ -596,7 +581,7 @@ export function PublicHomepage({
               <button
                 type="submit"
                 disabled={contactStatus.type === 'submitting'}
-                className="self-start inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#087AFF] hover:bg-blue-500 disabled:opacity-60 text-[#F3F7FF] text-sm font-semibold transition-colors"
+                className="self-start inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#00FF88] hover:bg-emerald-400 disabled:opacity-60 text-[#F3F7FF] text-sm font-semibold transition-colors"
               >
                 <Send className="w-4 h-4" aria-hidden="true" />
                 <span>
@@ -611,7 +596,7 @@ export function PublicHomepage({
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-[#32C5E8]/15 bg-[#060B18] py-8 px-4 sm:px-6 lg:px-8">
+      <footer className="border-t border-[#8B5CF6]/15 bg-[#060B18] py-8 px-4 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-[1440px] flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
           <div>
             <div className="logo text-sm font-bold text-[#F3F7FF]">
@@ -664,7 +649,7 @@ export function PublicHomepage({
             <button
               type="button"
               onClick={() => onOpenWorkspace('admin')}
-              className="text-[#32C5E8] hover:underline font-semibold"
+              className="text-[#8B5CF6] hover:underline font-semibold"
             >
               Admin Console
             </button>
@@ -679,7 +664,7 @@ export function PublicHomepage({
           aria-modal="true"
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm"
         >
-          <div className="surface-panel w-full max-w-lg rounded-2xl border border-[#32C5E8]/30 p-6 flex flex-col gap-4">
+          <div className="surface-panel w-full max-w-lg rounded-2xl border border-[#8B5CF6]/30 p-6 flex flex-col gap-4">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-bold text-[#F3F7FF]">
                 {LEGAL_CONTENT[legalModal].title}
@@ -701,7 +686,7 @@ export function PublicHomepage({
             <button
               type="button"
               onClick={() => setLegalModal(null)}
-              className="self-end px-4 py-2 rounded-xl bg-[#087AFF] text-white text-xs font-semibold"
+              className="self-end px-4 py-2 rounded-xl bg-[#00FF88] text-[#06101D] text-xs font-semibold"
             >
               Close
             </button>
