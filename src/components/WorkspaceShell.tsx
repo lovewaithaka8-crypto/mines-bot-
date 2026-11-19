@@ -14,7 +14,6 @@ import {
   History,
   Home,
   LayoutDashboard,
-  Link2,
   Settings,
   Shield,
   Sparkles,
@@ -30,7 +29,6 @@ import {
   SettingsModuleView,
   SignalControlPanel,
   SignalHistoryView,
-  SinglePlatformIntegrationView,
 } from '../modules/interfaceModule.tsx';
 import type {
   PlatformConfigsMap,
@@ -446,9 +444,9 @@ export default function WorkspaceShell({
   );
 
   return (
-    <div className="min-h-screen bg-[#080F20] text-[#F3F7FF] flex flex-col">
+    <div className="min-h-screen bg-[#070B1A] text-[#F3F7FF] flex flex-col">
       {/* Workspace Top Bar */}
-      <header className="sticky top-0 z-30 border-b border-[#8B5CF6]/15 bg-[#080F20]/95">
+      <header className="sticky top-0 z-30 border-b border-[#8B5CF6]/15 bg-[#070B1A]/95">
         <div className="mx-auto max-w-[1440px] px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
           <button
             type="button"
@@ -462,7 +460,7 @@ export default function WorkspaceShell({
             <button
               type="button"
               onClick={onGoHome}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[#32C5E8]/25 text-xs font-semibold text-[#9BB2D8] hover:text-[#06101D] whitespace-nowrap"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[#8B5CF6]/25 text-xs font-semibold text-[#A7B6CE] hover:text-[#06101D] whitespace-nowrap"
             >
               <Home className="w-3.5 h-3.5" aria-hidden="true" />
               <span>Homepage</span>
@@ -474,7 +472,7 @@ export default function WorkspaceShell({
                 void triggerSignalGeneration(false);
               }}
               disabled={isAnalyzing}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#00FF88] hover:bg-emerald-400 disabled:opacity-60 text-white text-xs font-bold whitespace-nowrap"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#00FF88] hover:bg-emerald-400 disabled:opacity-60 text-[#06101D] text-xs font-bold whitespace-nowrap"
             >
               <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
               <span>{isAnalyzing ? 'Analysing...' : 'Generate Signal'}</span>
@@ -517,7 +515,7 @@ export default function WorkspaceShell({
         {/* Desktop Workspace Sidebar */}
         <aside
           aria-label="Dashboard Navigation"
-          className="hidden lg:flex lg:col-span-3 xl:col-span-2 rounded-2xl border border-[#8B5CF6]/20 bg-[#080F20]/85 backdrop-blur-xl p-3 flex-col gap-1 sticky top-20 shadow-[0_0_24px_rgba(0,255,136,0.04)]"
+          className="hidden lg:flex lg:col-span-3 xl:col-span-2 rounded-2xl border border-[#8B5CF6]/20 bg-[#070B1A]/85 backdrop-blur-xl p-3 flex-col gap-1 sticky top-20 shadow-[0_0_24px_rgba(0,255,136,0.04)]"
         >
           {WORKSPACE_NAV.map((item) => {
             const Icon = item.icon;
@@ -607,50 +605,6 @@ export default function WorkspaceShell({
             </div>
           )}
 
-          {workspacePage === 'bgr8' && (
-            <SinglePlatformIntegrationView
-              platform="bgr8"
-              config={platformConfigs.bgr8}
-              onSaveConfig={(next) => onSavePlatformConfig('bgr8', next)}
-              onSyncSnapshot={(rId, traps, safe, mines) =>
-                handleSyncSnapshot('bgr8', rId, traps, safe, mines)
-              }
-            />
-          )}
-
-          {workspacePage === 'onewin' && (
-            <SinglePlatformIntegrationView
-              platform="onewin"
-              config={platformConfigs.onewin}
-              onSaveConfig={(next) => onSavePlatformConfig('onewin', next)}
-              onSyncSnapshot={(rId, traps, safe, mines) =>
-                handleSyncSnapshot('onewin', rId, traps, safe, mines)
-              }
-            />
-          )}
-
-
-          {workspacePage === 'aviator' && (
-            <div className="min-h-[55vh] flex items-center justify-center">
-              <section className="relative overflow-hidden w-full max-w-2xl rounded-3xl border border-[#8B5CF6]/35 bg-[#101A2C]/80 backdrop-blur-xl p-8 sm:p-12 text-center shadow-[0_0_45px_rgba(139,92,246,0.12)]">
-                <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl border border-red-400/30 bg-red-500/10"><Plane className="h-8 w-8 text-red-400" /></div>
-                <div className="inline-flex rounded-full border border-[#8B5CF6]/40 bg-[#8B5CF6]/10 px-3 py-1 text-xs font-bold tracking-[0.16em] text-[#C4A5FF]">COMING SOON</div>
-                <h2 className="mt-4 text-3xl sm:text-4xl font-extrabold text-white">Aviator Intelligence</h2>
-                <p className="mx-auto mt-3 max-w-lg text-sm leading-6 text-[#9BB2D8]">We're preparing the Aviator workspace. It isn't available yet—no predictions or live signals are generated here.</p>
-                <button type="button" onClick={() => onChangePage('analyzer')} className="mt-7 inline-flex items-center gap-2 rounded-xl bg-[#00FF88] px-5 py-3 text-sm font-bold text-[#06101D]">Go to Mines Analyzer <Grid className="h-4 w-4" /></button>
-              </section>
-            </div>
-          )}
-          {workspacePage === 'help' && (
-            <section className="surface-panel rounded-2xl border border-[#8B5CF6]/20 p-6 sm:p-8 space-y-4">
-              <h2 className="text-2xl font-extrabold">Help & Guide</h2>
-              <p className="text-sm text-[#9BB2D8]">Choose a betting site and Mines to enter the analyzer. Configure mine count, generate a statistical signal, and review the board suggestions.</p>
-              <div className="grid gap-3 sm:grid-cols-2"><div className="rounded-xl bg-[#101A2C] p-4"><h3 className="font-bold">Mines Analyzer</h3><p className="mt-1 text-xs text-[#9BB2D8]">Review probability calculations and board recommendations.</p></div><div className="rounded-xl bg-[#101A2C] p-4"><h3 className="font-bold">History & Performance</h3><p className="mt-1 text-xs text-[#9BB2D8]">Use recorded rounds to inspect outcomes. No synthetic results are added.</p></div></div>
-            </section>
-          )}
-          {workspacePage === 'responsible' && (
-            <section className="surface-panel rounded-2xl border border-[#8B5CF6]/20 p-6 sm:p-8 space-y-3"><h2 className="text-2xl font-extrabold">Responsible Play</h2><p className="text-sm leading-6 text-[#9BB2D8]">Mines games are random and outcomes cannot be reliably predicted. Never chase losses, use only money you can afford to lose, and take breaks. Statistical analysis does not guarantee winning outcomes.</p></section>
-          )}
           {workspacePage === 'history' && (
             <SignalHistoryView
               signals={signals}
