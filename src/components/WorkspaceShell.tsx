@@ -18,6 +18,9 @@ import {
   Settings,
   Shield,
   Sparkles,
+  Plane,
+  HelpCircle,
+  UserRound,
 } from 'lucide-react';
 import type { WorkspacePage } from './PublicHomepage.tsx';
 import { MinesBoardModule } from '../modules/minesBoardModule.tsx';
@@ -61,15 +64,15 @@ const WORKSPACE_NAV: ReadonlyArray<{
   label: string;
   icon: typeof LayoutDashboard;
 }> = [
-  { id: 'overview', label: 'Overview', icon: LayoutDashboard },
+  { id: 'overview', label: 'Home', icon: Home },
   { id: 'analyzer', label: 'Mines Analyzer', icon: Grid },
-  { id: 'bgr8', label: 'BGR8 Integration', icon: Link2 },
-  { id: 'onewin', label: '1win Integration', icon: Link2 },
-  { id: 'generate', label: 'Generate Signals', icon: Sparkles },
-  { id: 'history', label: 'Signal History', icon: History },
+  { id: 'aviator', label: 'Aviator · Coming Soon', icon: Plane },
+  { id: 'history', label: 'Round History', icon: History },
   { id: 'performance', label: 'Performance', icon: BarChart3 },
   { id: 'settings', label: 'Settings', icon: Settings },
-  { id: 'admin', label: 'Administration', icon: Shield },
+  { id: 'help', label: 'Help & Guide', icon: HelpCircle },
+  { id: 'responsible', label: 'Responsible Play', icon: Shield },
+  { id: 'admin', label: 'Administration', icon: UserRound },
 ];
 
 interface WorkspaceShellProps {
@@ -445,7 +448,7 @@ export default function WorkspaceShell({
   return (
     <div className="min-h-screen bg-[#080F20] text-[#F3F7FF] flex flex-col">
       {/* Workspace Top Bar */}
-      <header className="sticky top-0 z-30 border-b border-[#32C5E8]/15 bg-[#080F20]/95">
+      <header className="sticky top-0 z-30 border-b border-[#8B5CF6]/15 bg-[#080F20]/95">
         <div className="mx-auto max-w-[1440px] px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
           <button
             type="button"
@@ -459,7 +462,7 @@ export default function WorkspaceShell({
             <button
               type="button"
               onClick={onGoHome}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[#32C5E8]/25 text-xs font-semibold text-[#9BB2D8] hover:text-white whitespace-nowrap"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[#32C5E8]/25 text-xs font-semibold text-[#9BB2D8] hover:text-[#06101D] whitespace-nowrap"
             >
               <Home className="w-3.5 h-3.5" aria-hidden="true" />
               <span>Homepage</span>
@@ -471,7 +474,7 @@ export default function WorkspaceShell({
                 void triggerSignalGeneration(false);
               }}
               disabled={isAnalyzing}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#087AFF] hover:bg-blue-500 disabled:opacity-60 text-white text-xs font-bold whitespace-nowrap"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#00FF88] hover:bg-emerald-400 disabled:opacity-60 text-white text-xs font-bold whitespace-nowrap"
             >
               <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
               <span>{isAnalyzing ? 'Analysing...' : 'Generate Signal'}</span>
@@ -482,7 +485,7 @@ export default function WorkspaceShell({
         {/* Mobile Workspace Nav Strip */}
         <nav
           aria-label="Workspace mobile navigation"
-          className="flex lg:hidden items-center gap-1 overflow-x-auto border-t border-[#32C5E8]/10 px-3 py-2 text-xs"
+          className="fixed bottom-0 left-0 right-0 z-40 flex lg:hidden items-center justify-around gap-1 border-t border-[#8B5CF6]/20 bg-[#080F20]/95 backdrop-blur-xl px-2 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] text-xs shadow-[0_-8px_30px_rgba(0,255,136,0.08)]"
         >
           {WORKSPACE_NAV.map((item) => {
             const active = workspacePage === item.id;
@@ -491,9 +494,9 @@ export default function WorkspaceShell({
                 key={item.id}
                 type="button"
                 onClick={() => onChangePage(item.id)}
-                className={`px-3 py-1.5 rounded-lg whitespace-nowrap shrink-0 font-semibold ${
+                className={`flex flex-col items-center gap-1 px-2 py-1.5 rounded-lg whitespace-nowrap shrink-0 font-semibold ${
                   active
-                    ? 'bg-[#087AFF] text-white'
+                    ? 'bg-[#00FF88]/12 text-[#00FF88] shadow-[0_0_12px_rgba(0,255,136,0.12)]'
                     : 'text-[#9BB2D8] hover:text-white'
                 }`}
               >
@@ -510,11 +513,11 @@ export default function WorkspaceShell({
         </div>
       )}
 
-      <div className="flex-1 mx-auto w-full max-w-[1440px] px-4 sm:px-6 lg:px-8 py-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      <div className="flex-1 mx-auto w-full max-w-[1440px] px-4 sm:px-6 lg:px-8 py-6 pb-24 lg:pb-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Desktop Workspace Sidebar */}
         <aside
           aria-label="Dashboard Navigation"
-          className="hidden lg:flex lg:col-span-3 xl:col-span-2 surface-panel rounded-2xl border border-[#32C5E8]/20 p-3 flex-col gap-1 sticky top-20"
+          className="hidden lg:flex lg:col-span-3 xl:col-span-2 rounded-2xl border border-[#8B5CF6]/20 bg-[#080F20]/85 backdrop-blur-xl p-3 flex-col gap-1 sticky top-20 shadow-[0_0_24px_rgba(0,255,136,0.04)]"
         >
           {WORKSPACE_NAV.map((item) => {
             const Icon = item.icon;
@@ -526,7 +529,7 @@ export default function WorkspaceShell({
                 onClick={() => onChangePage(item.id)}
                 className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-semibold transition-colors text-left ${
                   active
-                    ? 'bg-[#087AFF] text-white shadow'
+                    ? 'bg-[#00FF88]/10 text-[#00FF88] border border-[#00FF88]/25 shadow-[0_0_16px_rgba(0,255,136,0.12)]'
                     : 'text-[#9BB2D8] hover:bg-white/5 hover:text-[#F3F7FF]'
                 }`}
               >
@@ -550,7 +553,7 @@ export default function WorkspaceShell({
               </p>
             </div>
             <div className="inline-flex items-center gap-1.5 text-xs text-[#9BB2D8]">
-              <Activity className="w-3.5 h-3.5 text-[#32C5E8]" aria-hidden="true" />
+              <Activity className="w-3.5 h-3.5 text-[#00FF88]" aria-hidden="true" />
               <span className="tabular-nums">{signals.length} Signals Stored</span>
             </div>
           </div>
@@ -626,6 +629,28 @@ export default function WorkspaceShell({
             />
           )}
 
+
+          {workspacePage === 'aviator' && (
+            <div className="min-h-[55vh] flex items-center justify-center">
+              <section className="relative overflow-hidden w-full max-w-2xl rounded-3xl border border-[#8B5CF6]/35 bg-[#101A2C]/80 backdrop-blur-xl p-8 sm:p-12 text-center shadow-[0_0_45px_rgba(139,92,246,0.12)]">
+                <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl border border-red-400/30 bg-red-500/10"><Plane className="h-8 w-8 text-red-400" /></div>
+                <div className="inline-flex rounded-full border border-[#8B5CF6]/40 bg-[#8B5CF6]/10 px-3 py-1 text-xs font-bold tracking-[0.16em] text-[#C4A5FF]">COMING SOON</div>
+                <h2 className="mt-4 text-3xl sm:text-4xl font-extrabold text-white">Aviator Intelligence</h2>
+                <p className="mx-auto mt-3 max-w-lg text-sm leading-6 text-[#9BB2D8]">We're preparing the Aviator workspace. It isn't available yet—no predictions or live signals are generated here.</p>
+                <button type="button" onClick={() => onChangePage('analyzer')} className="mt-7 inline-flex items-center gap-2 rounded-xl bg-[#00FF88] px-5 py-3 text-sm font-bold text-[#06101D]">Go to Mines Analyzer <Grid className="h-4 w-4" /></button>
+              </section>
+            </div>
+          )}
+          {workspacePage === 'help' && (
+            <section className="surface-panel rounded-2xl border border-[#8B5CF6]/20 p-6 sm:p-8 space-y-4">
+              <h2 className="text-2xl font-extrabold">Help & Guide</h2>
+              <p className="text-sm text-[#9BB2D8]">Choose a betting site and Mines to enter the analyzer. Configure mine count, generate a statistical signal, and review the board suggestions.</p>
+              <div className="grid gap-3 sm:grid-cols-2"><div className="rounded-xl bg-[#101A2C] p-4"><h3 className="font-bold">Mines Analyzer</h3><p className="mt-1 text-xs text-[#9BB2D8]">Review probability calculations and board recommendations.</p></div><div className="rounded-xl bg-[#101A2C] p-4"><h3 className="font-bold">History & Performance</h3><p className="mt-1 text-xs text-[#9BB2D8]">Use recorded rounds to inspect outcomes. No synthetic results are added.</p></div></div>
+            </section>
+          )}
+          {workspacePage === 'responsible' && (
+            <section className="surface-panel rounded-2xl border border-[#8B5CF6]/20 p-6 sm:p-8 space-y-3"><h2 className="text-2xl font-extrabold">Responsible Play</h2><p className="text-sm leading-6 text-[#9BB2D8]">Mines games are random and outcomes cannot be reliably predicted. Never chase losses, use only money you can afford to lose, and take breaks. Statistical analysis does not guarantee winning outcomes.</p></section>
+          )}
           {workspacePage === 'history' && (
             <SignalHistoryView
               signals={signals}
