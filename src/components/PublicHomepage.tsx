@@ -34,7 +34,7 @@ function HeroGemIcon() {
         stroke="#A7F3D0"
         strokeWidth="1.5"
       />
-      <polygon points="18,3 31,12 18,16 5,12" fill="#32C5E8" fillOpacity="0.55" />
+      <polygon points="18,3 31,12 18,16 5,12" fill="#8B5CF6" fillOpacity="0.55" />
       <polygon points="18,3 24,12 18,29 12,12" fill="#FFFFFF" fillOpacity="0.26" />
     </svg>
   );
@@ -97,10 +97,10 @@ const LEGAL_CONTENT: Record<
     ],
   },
   compatibility: {
-    title: 'Platform Compatibility',
+    title: 'Site Selection',
     body: [
-      'Universal Mines AI provides two independent integration modules: /integrations/bgr8.js for BGR8 Mines and /integrations/onewin.js for 1win Mines.',
-      'Where official public APIs are unavailable or unconfigured, both platforms support authorized visible board input and manual outcome recording without bypassing authentication.',
+      'Choose a betting site from the homepage selector to open the Mines analysis workspace.',
+      'The platform focuses on transparent probability calculations, visible board inputs, and manual outcome tracking.',
     ],
   },
 };
@@ -114,7 +114,7 @@ function PlatformMark({ platform }: { platform: PlatformId }) {
     );
   }
   return (
-    <div className="w-11 h-11 rounded-xl bg-[#087AFF]/20 border border-[#32C5E8]/40 flex items-center justify-center font-display font-extrabold text-sm text-[#32C5E8]">
+    <div className="w-11 h-11 rounded-xl bg-[#00FF88]/20 border border-[#32C5E8]/40 flex items-center justify-center font-display font-extrabold text-sm text-[#32C5E8]">
       1W
     </div>
   );
@@ -232,76 +232,7 @@ export function PublicHomepage({
             </a>
             <a href="#how-it-works" className="hover:text-[#F3F7FF] transition-colors whitespace-nowrap shrink-0">
               How It Works
-            </a>
-            <a href="#platforms" className="hover:text-[#F3F7FF] transition-colors whitespace-nowrap shrink-0">
-              Supported Platforms
-            </a>
-            <a href="#features" className="hover:text-[#F3F7FF] transition-colors whitespace-nowrap shrink-0">
-              Features
-            </a>
-            <a href="#contact" className="hover:text-[#F3F7FF] transition-colors whitespace-nowrap shrink-0">
-              Contact
-            </a>
-          </nav>
-
-          <div className="flex items-center shrink-0">
-            <button
-              type="button"
-              onClick={() => document.getElementById('platform-selector')?.scrollIntoView({ behavior: 'smooth' })}
-              className="px-4 py-2 rounded-xl bg-[#087AFF] hover:bg-blue-500 text-[#F3F7FF] text-xs sm:text-sm font-semibold transition-colors whitespace-nowrap shrink-0 shadow-md shadow-blue-950/40"
-            >
-              Choose Platform
-            </button>
-          </div>
-        </div>
-      </header>
-
-      <main className="flex-1">
-        {/* Hero Section */}
-        <section
-          id="home"
-          className="relative overflow-hidden border-b border-[#32C5E8]/10"
-        >
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute -top-24 left-1/4 w-[560px] h-[380px] rounded-full bg-[radial-gradient(closest-side,rgba(8,122,255,0.22),transparent)]"
-          />
-          <div className="mx-auto max-w-[1440px] px-4 sm:px-6 lg:px-8 py-14 sm:py-20 grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
-            <div className="lg:col-span-6 flex flex-col gap-5">
-              <p className="text-xs sm:text-sm font-semibold tracking-wider text-[#32C5E8]">
-                Direct Access · BGR8 Mines & 1win Mines
-              </p>
-              <h1
-                className="font-display font-extrabold tracking-tight text-[#F3F7FF] leading-[1.08]"
-                style={{ fontSize: 'clamp(2.25rem, 4vw, 3.6rem)' }}
-              >
-                UNIVERSAL MINES AI
-              </h1>
-              <h2 className="font-display text-lg sm:text-2xl font-semibold text-[#32C5E8] max-w-xl">
-                Advanced Mines Game Analysis and Statistical Intelligence.
-              </h2>
-              <p className="text-sm sm:text-base text-[#9BB2D8] max-w-xl leading-relaxed">
-                Analyse Mines game configurations, calculate probabilities,
-                receive visual recommendations and monitor your performance
-                through one unified platform.
-              </p>
-
-              <div className="flex flex-wrap items-center gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => document.getElementById('platform-selector')?.scrollIntoView({ behavior: 'smooth' })}
-                  className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-[#087AFF] hover:bg-blue-500 text-[#F3F7FF] text-sm font-semibold transition-colors shadow-lg shadow-blue-950/40"
-                >
-                  <span>Choose Site & Game</span>
-                  <ArrowRight className="w-4 h-4" aria-hidden="true" />
-                </button>
-                <a
-                  href="#platforms"
-                  className="inline-flex items-center gap-2 px-5 py-3 rounded-xl border border-[#32C5E8]/35 bg-[#10182B] hover:border-[#32C5E8] text-[#F3F7FF] text-sm font-semibold transition-colors"
-                >
-                  <span>Explore Platforms</span>
-                </a>
-                <button
+            </a>                <button
                   type="button"
                   onClick={() => onOpenWorkspace('performance')}
                   className="inline-flex items-center gap-2 px-4 py-3 rounded-xl text-[#9BB2D8] hover:text-[#F3F7FF] text-sm font-semibold transition-colors"
@@ -407,10 +338,10 @@ export function PublicHomepage({
               <div className="border-t border-[#32C5E8]/15 pt-5">
                 <h3 className="text-sm font-bold mb-3">Choose Game</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <button type="button" onClick={() => { setSelectedGame('aviator'); setSelectionNotice(''); }}
+                  <button type="button" onClick={() => { setSelectedGame('aviator'); setSelectionNotice('Aviator is coming soon. Mines analysis is currently available.'); }}
                     className={`rounded-xl border p-4 text-left flex items-center gap-3 transition-all ${selectedGame === 'aviator' ? 'border-[#16A765] bg-[#16A765]/10' : 'border-[#32C5E8]/20 bg-[#10182B] hover:border-[#32C5E8]/50'}`}>
                     <div className="w-11 h-11 rounded-xl bg-red-500/15 flex items-center justify-center"><Plane className="w-5 h-5 text-red-300" /></div>
-                    <div><span className="font-bold text-sm">Aviator</span><p className="text-xs text-[#9BB2D8] mt-1">Crash game analysis</p></div>
+                    <div><span className="font-bold text-sm">Aviator</span><p className="text-xs text-[#9BB2D8] mt-1">Coming soon</p></div>
                   </button>
                   <button type="button" onClick={() => { setSelectedGame('mines'); setSelectionNotice(''); }}
                     className={`rounded-xl border p-4 text-left flex items-center gap-3 transition-all ${selectedGame === 'mines' ? 'border-[#16A765] bg-[#16A765]/10' : 'border-[#32C5E8]/20 bg-[#10182B] hover:border-[#32C5E8]/50'}`}>
@@ -429,102 +360,6 @@ export function PublicHomepage({
         </section>
 
         {/* Supported Platforms */}
-        <section
-          id="platforms"
-          className="mx-auto max-w-[1440px] px-4 sm:px-6 lg:px-8 py-14 sm:py-16 border-b border-[#32C5E8]/10"
-        >
-          <div className="max-w-2xl mb-8">
-            <h2 className="font-display text-2xl sm:text-3xl font-bold text-[#F3F7FF]">
-              Supported Platforms
-            </h2>
-            <p className="text-sm sm:text-base text-[#9BB2D8] mt-2">
-              Independent integration modules keep platform endpoints, board structures, and verification statuses cleanly separated.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* BGR8 Card */}
-            <article className="surface-card rounded-2xl border border-[#32C5E8]/20 p-6 flex flex-col justify-between gap-5">
-              <div className="flex flex-col gap-3">
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-3">
-                    <PlatformMark platform="bgr8" />
-                    <div>
-                      <h3 className="text-lg font-bold text-[#F3F7FF]">
-                        BGR8 Mines
-                      </h3>
-                      <div className="text-xs text-[#9BB2D8]">
-                        Status:{' '}
-                        <span className="text-[#F3F7FF] font-semibold">
-                          {formatConnectionBadge(
-                            platformConfigs.bgr8.connectionStatus
-                          )}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <p className="text-sm text-[#9BB2D8] leading-relaxed">
-                  Dedicated BGR8 integration module supporting 1–24 mine configurations, authorized endpoint verification, visible round synchronization, and independent performance history.
-                </p>
-              </div>
-
-              <div className="flex items-center justify-between gap-3 pt-3 border-t border-[#32C5E8]/15">
-                <span className="text-xs text-[#9BB2D8]">
-                  Module: /integrations/bgr8.js
-                </span>
-                <button
-                  type="button"
-                  onClick={() => onOpenWorkspace('bgr8')}
-                  className="px-4 py-2 rounded-xl bg-[#087AFF] hover:bg-blue-500 text-[#F3F7FF] text-xs font-semibold transition-colors"
-                >
-                  Connect Platform
-                </button>
-              </div>
-            </article>
-
-            {/* 1win Card */}
-            <article className="surface-card rounded-2xl border border-[#32C5E8]/20 p-6 flex flex-col justify-between gap-5">
-              <div className="flex flex-col gap-3">
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-3">
-                    <PlatformMark platform="onewin" />
-                    <div>
-                      <h3 className="text-lg font-bold text-[#F3F7FF]">
-                        1win Mines
-                      </h3>
-                      <div className="text-xs text-[#9BB2D8]">
-                        Status:{' '}
-                        <span className="text-[#F3F7FF] font-semibold">
-                          {formatConnectionBadge(
-                            platformConfigs.onewin.connectionStatus
-                          )}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <p className="text-sm text-[#9BB2D8] leading-relaxed">
-                  Independent 1win Mines integration module supporting trap presets, visible board analysis, manual input fallback, and separate platform accuracy tracking.
-                </p>
-              </div>
-
-              <div className="flex items-center justify-between gap-3 pt-3 border-t border-[#32C5E8]/15">
-                <span className="text-xs text-[#9BB2D8]">
-                  Module: /integrations/onewin.js
-                </span>
-                <button
-                  type="button"
-                  onClick={() => onOpenWorkspace('onewin')}
-                  className="px-4 py-2 rounded-xl bg-[#087AFF] hover:bg-blue-500 text-[#F3F7FF] text-xs font-semibold transition-colors"
-                >
-                  Connect Platform
-                </button>
-              </div>
-            </article>
-          </div>
-        </section>
-
         {/* About & Features Bento */}
         <section
           id="about"
@@ -575,11 +410,6 @@ export function PublicHomepage({
                 icon: Layers,
                 title: 'Live Board Reading',
                 desc: 'Parses visible authorized round snapshots without claiming hidden RNG access.',
-              },
-              {
-                icon: Link2,
-                title: 'Independent Integrations',
-                desc: 'Dedicated BGR8 and 1win modules with separate endpoints and status diagnostics.',
               },
             ].map((feat) => {
               const Icon = feat.icon;
@@ -670,13 +500,13 @@ export function PublicHomepage({
             <div className="lg:col-span-5 flex flex-col gap-3">
               <div className="inline-flex items-center gap-2 text-xs font-semibold text-[#32C5E8]">
                 <Mail className="w-4 h-4" aria-hidden="true" />
-                <span>Support & Integration Inquiries</span>
+                <span>Support Inquiries</span>
               </div>
               <h2 className="font-display text-2xl sm:text-3xl font-bold text-[#F3F7FF]">
                 Contact Support
               </h2>
               <p className="text-sm text-[#9BB2D8] leading-relaxed">
-                Questions about BGR8 or 1win API integration contracts, statistical methodology, or platform diagnostics? Send an inquiry directly to the backend support queue.
+                Questions about the Mines analyzer, statistical methodology, or platform features? Send an inquiry to support.
               </p>
             </div>
 
@@ -726,8 +556,8 @@ export function PublicHomepage({
                   className="px-3.5 py-2.5 rounded-xl border border-[#32C5E8]/25 bg-[#080F20] text-sm text-[#F3F7FF] focus:outline-none focus:border-[#32C5E8]"
                 >
                   <option value="Platform Support">Platform Support</option>
-                  <option value="BGR8 Integration">BGR8 Integration</option>
-                  <option value="1win Integration">1win Integration</option>
+                  
+                  
                   <option value="Statistical Engine Feedback">
                     Statistical Engine Feedback
                   </option>
@@ -745,7 +575,7 @@ export function PublicHomepage({
                   minLength={10}
                   value={contactMessage}
                   onChange={(e) => setContactMessage(e.target.value)}
-                  placeholder="Describe your integration or support question..."
+                  placeholder="Describe your support question..."
                   className="px-3.5 py-2.5 rounded-xl border border-[#32C5E8]/25 bg-[#080F20] text-sm text-[#F3F7FF] focus:outline-none focus:border-[#32C5E8]"
                 />
               </div>
@@ -788,7 +618,7 @@ export function PublicHomepage({
               UNIVERSAL MINES AI
             </div>
             <p className="text-xs text-[#9BB2D8] mt-1">
-              Statistical analysis for BGR8 Mines & 1win Mines · No automated betting.
+              Mines statistical analysis · No automated betting.
             </p>
           </div>
 
@@ -829,7 +659,7 @@ export function PublicHomepage({
               onClick={() => setLegalModal('compatibility')}
               className="hover:text-[#F3F7FF] transition-colors"
             >
-              Platform Compatibility
+              Site Selection
             </button>
             <button
               type="button"
