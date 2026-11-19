@@ -444,9 +444,9 @@ export default function WorkspaceShell({
   );
 
   return (
-    <div className="min-h-screen bg-[#070B1A] text-[#F3F7FF] flex flex-col">
+    <div className="min-h-screen bg-[#050A12] text-[#F3F7FF] flex flex-col">
       {/* Workspace Top Bar */}
-      <header className="sticky top-0 z-30 border-b border-[#8B5CF6]/15 bg-[#070B1A]/95">
+      <header className="sticky top-0 z-30 border-b border-emerald-400/15 bg-[#050A12]/95 backdrop-blur-2xl">
         <div className="mx-auto max-w-[1440px] px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
           <button
             type="button"
@@ -480,25 +480,18 @@ export default function WorkspaceShell({
           </div>
         </div>
 
-        {/* Mobile Workspace Nav Strip */}
-        <nav
-          aria-label="Workspace mobile navigation"
-          className="fixed bottom-0 left-0 right-0 z-40 flex lg:hidden items-center justify-around gap-1 border-t border-[#8B5CF6]/20 bg-[#080F20]/95 backdrop-blur-xl px-2 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] text-xs shadow-[0_-8px_30px_rgba(0,255,136,0.08)]"
-        >
+        {/* Icon-led mobile navigation */}
+        <nav aria-label="Workspace mobile navigation" className="fixed bottom-0 left-0 right-0 z-40 flex lg:hidden items-center justify-between gap-1 border-t border-emerald-400/20 bg-[#080D18]/95 backdrop-blur-2xl px-1.5 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-[0_-10px_36px_rgba(0,255,136,0.08)]">
           {WORKSPACE_NAV.map((item) => {
+            const Icon = item.icon;
             const active = workspacePage === item.id;
             return (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => onChangePage(item.id)}
-                className={`flex flex-col items-center gap-1 px-2 py-1.5 rounded-lg whitespace-nowrap shrink-0 font-semibold ${
-                  active
-                    ? 'bg-[#00FF88]/12 text-[#00FF88] shadow-[0_0_12px_rgba(0,255,136,0.12)]'
-                    : 'text-[#9BB2D8] hover:text-white'
-                }`}
-              >
-                {item.label}
+              <button key={item.id} type="button" aria-label={item.label} title={item.label} onClick={() => onChangePage(item.id)}
+                className={`flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-xl px-1 py-2 text-[9px] font-semibold transition-all ${
+                  active ? 'bg-emerald-400/10 text-emerald-300 ring-1 ring-emerald-300/25 shadow-[0_0_18px_rgba(0,255,136,0.13)]' : 'text-slate-400 hover:text-white'
+                }`}>
+                <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+                <span className="max-w-full truncate">{item.label}</span>
               </button>
             );
           })}
@@ -515,7 +508,7 @@ export default function WorkspaceShell({
         {/* Desktop Workspace Sidebar */}
         <aside
           aria-label="Dashboard Navigation"
-          className="hidden lg:flex lg:col-span-3 xl:col-span-2 rounded-2xl border border-[#8B5CF6]/20 bg-[#070B1A]/85 backdrop-blur-xl p-3 flex-col gap-1 sticky top-20 shadow-[0_0_24px_rgba(0,255,136,0.04)]"
+          className="hidden lg:flex lg:col-span-3 xl:col-span-2 rounded-2xl border border-white/[0.06] bg-[#0A111C]/90 backdrop-blur-2xl p-3 flex-col gap-1 sticky top-20 shadow-[0_12px_48px_rgba(0,0,0,0.3)]"
         >
           {WORKSPACE_NAV.map((item) => {
             const Icon = item.icon;
@@ -527,7 +520,7 @@ export default function WorkspaceShell({
                 onClick={() => onChangePage(item.id)}
                 className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-semibold transition-colors text-left ${
                   active
-                    ? 'bg-[#00FF88]/10 text-[#00FF88] border border-[#00FF88]/25 shadow-[0_0_16px_rgba(0,255,136,0.12)]'
+                    ? 'bg-emerald-400/10 text-emerald-300 border border-emerald-300/20 shadow-[0_0_20px_rgba(0,255,136,0.14)]'
                     : 'text-[#9BB2D8] hover:bg-white/5 hover:text-[#F3F7FF]'
                 }`}
               >
@@ -540,7 +533,7 @@ export default function WorkspaceShell({
 
         {/* Main Workspace Content */}
         <main className="lg:col-span-9 xl:col-span-10 flex flex-col gap-5">
-          <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-[#32C5E8]/15">
+          <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-emerald-400/15">
             <div>
               <h1 className="font-display text-xl font-bold text-[#F3F7FF]">
                 {WORKSPACE_NAV.find((n) => n.id === workspacePage)?.label}
