@@ -1,14 +1,10 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
-import {
-  PublicHomepage,
-  type WorkspacePage,
-} from './components/PublicHomepage.tsx';
+import { PublicHomepage } from './components/PublicHomepage.tsx';
+import type { WorkspaceSystemStatus } from './components/WorkspaceShell.tsx';
 import type {
-  PlatformConfigsMap,
-  PlatformId,
-  PlatformIntegrationConfig,
   SignalRecord,
   UserSettings,
+  WorkspacePage,
 } from './types/mines.ts';
 import { localMinesRepository } from './modules/databaseModule.ts';
 import { fetchJsonWithOptimization } from './services/networkClient.ts';
@@ -18,16 +14,23 @@ const WorkspaceShell = lazy(() => import('./components/WorkspaceShell.tsx'));
 
 function WorkspaceFallback() {
   return (
-    <div className="min-h-screen bg-[#080F20] text-[#F3F7FF] flex flex-col">
-      <div className="h-16 border-b border-[#32C5E8]/15 bg-[#080F20] px-6 flex items-center justify-between">
-        <div className="font-display font-extrabold text-base text-[#F3F7FF]">
-          UNIVERSAL MINES AI
-        </div>
-        <div className="text-xs text-[#9BB2D8]">Loading Workspace...</div>
+    <div className="min-h-screen midnight-workspace-canvas text-[#F4F7FC] flex">
+      <div className="hidden lg:flex w-[76px] shrink-0 bg-[#080F1B] border-r border-white/[0.08] flex-col items-center py-4 gap-3">
+        <div className="w-9 h-9 rounded-xl bg-[#0D1726] border border-white/[0.08]" />
+        <div className="w-10 h-10 rounded-xl bg-[#0D1726]/70" />
+        <div className="w-10 h-10 rounded-xl bg-[#0D1726]/70" />
+        <div className="w-10 h-10 rounded-xl bg-[#0D1726]/70" />
       </div>
-      <div className="flex-1 mx-auto w-full max-w-[1440px] p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
-        <div className="hidden lg:block lg:col-span-2 h-80 rounded-2xl bg-[#10182B] border border-[#32C5E8]/15" />
-        <div className="lg:col-span-10 h-96 rounded-2xl bg-[#10182B] border border-[#32C5E8]/15" />
+      <div className="flex-1 flex flex-col">
+        <div className="h-16 border-b border-white/[0.08] bg-[#050A12]/80 px-6 flex items-center justify-between">
+          <div className="font-display font-extrabold text-base text-[#F4F7FC]">
+            Mines Bot
+          </div>
+          <div className="text-xs text-[#91A0B5]">Loading Workspace...</div>
+        </div>
+        <div className="flex-1 mx-auto w-full max-w-[1440px] p-6">
+          <div className="h-96 rounded-2xl glass-panel" />
+        </div>
       </div>
     </div>
   );
@@ -41,32 +44,43 @@ export default function App() {
   const [settings, setSettings] = useState<UserSettings>(() =>
     localMinesRepository.loadSettings()
   );
-  const [platformConfigs, setPlatformConfigs] = useState<PlatformConfigsMap>(
-    () => localMinesRepository.loadPlatformConfigs()
-  );
   const [signals, setSignals] = useState<SignalRecord[]>(() =>
     localMinesRepository.loadSignals()
   );
-  const [maintenanceNotice, setMaintenanceNotice] = useState('');
+  const [systemStatus, setSystemStatus] = useState<WorkspaceSystemStatus>({
+    engineReady: true,
+    aiAnalysisEnabled: false,
+    adminConfigured: false,
+    maintenanceNotice: '',
+  });
 
   useEffect(() => {
     const teardownErrors = performanceMonitor.initErrorTracking();
     const controller = new AbortController();
 
-    fetchJsonWithOptimization<{ maintenanceNotice?: string }>(
-      '/api/system/status',
-      {
-        signal: controller.signal,
-        timeoutMs: 4000,
-        cacheTtlMs: 10000,
-      }
-    )
+    fetchJsonWithOptimization<{
+      engineReady?: boolean;
+      aiAnalysisEnabled?: boolean;
+      adminConfigured?: boolean;
+      maintenanceNotice?: string;
+    }>('/api/system/status', {
+      signal: controller.signal,
+      timeoutMs: 4000,
+      cacheTtlMs: 10000,
+    })
       .then(({ ok, data }) => {
-        if (ok && data?.maintenanceNotice) {
-          setMaintenanceNotice(data.maintenanceNotice);
+        if (ok && data) {
+          setSystemStatus({
+            engineReady: Boolean(data.engineReady),
+            aiAnalysisEnabled: Boolean(data.aiAnalysisEnabled),
+            adminConfigured: Boolean(data.adminConfigured),
+            maintenanceNotice: data.maintenanceNotice ?? '',
+          });
         }
       })
-      .catch(() => {});
+      .catch(() => {
+        setSystemStatus((prev) => ({ ...prev, engineReady: false }));
+      });
 
     if (localMinesRepository.loadSignals().length === 0) {
       fetchJsonWithOptimization<{ signals?: SignalRecord[] }>(
@@ -95,61 +109,28 @@ export default function App() {
   const handleUpdateSettings = useCallback((partial: Partial<UserSettings>) => {
     setSettings((prev) => {
       const next = { ...prev, ...partial };
-      if (partial.selectedPlatform) {
-        const maxSafe = 25 - next.trapsByPlatform[partial.selectedPlatform];
-        next.recommendedCount = Math.min(next.recommendedCount, maxSafe);
-      }
-      localMinesRepository.saveSettings(next);
-      return next;
-    });
-  }, []);
-
-  const handleUpdateTraps = useCallback((traps: number) => {
-    const validTraps = Math.max(1, Math.min(24, traps));
-    setSettings((prev) => {
-      const pid = prev.selectedPlatform;
-      const next: UserSettings = {
-        ...prev,
-        trapsByPlatform: {
-          ...prev.trapsByPlatform,
-          [pid]: validTraps,
-        },
-        recommendedCount: Math.min(prev.recommendedCount, 25 - validTraps),
-      };
-      localMinesRepository.saveSettings(next);
-      return next;
-    });
-  }, []);
-
-  const handleSavePlatformConfig = useCallback(
-    (platform: PlatformId, config: PlatformIntegrationConfig) => {
-      setPlatformConfigs((prev) => {
-        const next = { ...prev, [platform]: config };
-        localMinesRepository.savePlatformConfigs(next);
-        return next;
-      });
-    },
-    []
-  );
-
-  const openWorkspacePage = useCallback(
-    (page: WorkspacePage) => {
-      setSwitchStartedAt(
-        typeof performance !== 'undefined' ? performance.now() : null
+      const maxSafe = 25 - next.defaultMinesCount;
+      next.recommendedCount = Math.max(
+        1,
+        Math.min(next.recommendedCount, maxSafe)
       );
-      if (page === 'bgr8' || page === 'onewin') {
-        handleUpdateSettings({ selectedPlatform: page });
-      }
-      setWorkspacePage(page);
-      setRouteMode('workspace');
-    },
-    [handleUpdateSettings]
-  );
+      localMinesRepository.saveSettings(next);
+      return next;
+    });
+  }, []);
+
+  const openWorkspacePage = useCallback((page: WorkspacePage) => {
+    setSwitchStartedAt(
+      typeof performance !== 'undefined' ? performance.now() : null
+    );
+    setWorkspacePage(page);
+    setRouteMode('workspace');
+  }, []);
 
   if (routeMode === 'home') {
     return (
       <PublicHomepage
-        platformConfigs={platformConfigs}
+        storedSignalsCount={signals.length}
         onOpenWorkspace={openWorkspacePage}
       />
     );
@@ -162,13 +143,10 @@ export default function App() {
         onChangePage={setWorkspacePage}
         onGoHome={() => setRouteMode('home')}
         settings={settings}
-        platformConfigs={platformConfigs}
         signals={signals}
-        maintenanceNotice={maintenanceNotice}
+        systemStatus={systemStatus}
         switchStartedAt={switchStartedAt}
         onUpdateSettings={handleUpdateSettings}
-        onUpdateTraps={handleUpdateTraps}
-        onSavePlatformConfig={handleSavePlatformConfig}
         onSignalsChange={setSignals}
       />
     </Suspense>

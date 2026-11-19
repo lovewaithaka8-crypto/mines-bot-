@@ -1,4 +1,4 @@
-import type { PlatformId, RiskLevel, SafePathStep } from '../types/mines.ts';
+import type { RiskLevel, SafePathStep } from '../types/mines.ts';
 
 const COLS = ['A', 'B', 'C', 'D', 'E'] as const;
 
@@ -23,7 +23,7 @@ const COORDS_25: ReadonlyArray<string> = Array.from(
 
 const singleSafetyCache = new Map<number, number>();
 const jointProbCache = new Map<string, number>();
-const multiplierLadderCache = new Map<string, MultiplierStep[]>();
+const multiplierLadderCache = new Map<number, MultiplierStep[]>();
 
 export function indexToRowCol(index: number): { row: number; col: number } {
   const safeIndex = Math.max(0, Math.min(24, Math.floor(index)));
@@ -48,7 +48,10 @@ export function calcSingleTileSafety(trapsCount: number): number {
   return val;
 }
 
-export function calcLiveTrapRiskPct(trapsCount: number, revealedSafeCount = 0): number {
+export function calcLiveTrapRiskPct(
+  trapsCount: number,
+  revealedSafeCount = 0
+): number {
   const clampedTraps = Math.max(1, Math.min(24, trapsCount));
   const remainingTiles = Math.max(1, 25 - Math.max(0, revealedSafeCount));
   return Number(Math.min(100, (clampedTraps / remainingTiles) * 100).toFixed(2));
@@ -75,20 +78,12 @@ export function calcJointSurvivalProbability(
   return result;
 }
 
-export function getHouseEdgeFactor(platform: PlatformId): number {
-  return platform === 'onewin' ? 0.97 : 0.99;
-}
-
-export function getMultiplierLadder(
-  trapsCount: number,
-  platform: PlatformId = 'onewin'
-): MultiplierStep[] {
+export function getMultiplierLadder(trapsCount: number): MultiplierStep[] {
   const traps = Math.max(1, Math.min(24, trapsCount));
-  const edge = getHouseEdgeFactor(platform);
-  const cacheKey = `${platform}:${traps}`;
-  const cached = multiplierLadderCache.get(cacheKey);
+  const cached = multiplierLadderCache.get(traps);
   if (cached) return cached;
 
+  const edge = 0.99;
   const maxPicks = 25 - traps;
   const ladder: MultiplierStep[] = [];
   let probability = 1;
@@ -105,7 +100,7 @@ export function getMultiplierLadder(
     });
   }
 
-  multiplierLadderCache.set(cacheKey, ladder);
+  multiplierLadderCache.set(traps, ladder);
   return ladder;
 }
 

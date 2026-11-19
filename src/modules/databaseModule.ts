@@ -1,6 +1,5 @@
 import type {
-  PlatformConfigsMap,
-  PlatformId,
+  AnalysisWindowSetting,
   SignalRecord,
   UserSettings,
 } from '../types/mines.ts';
@@ -10,56 +9,21 @@ import {
 } from '../services/networkClient.ts';
 
 const SETTINGS_KEY = 'universal_mines_settings_prod_v1';
-const PLATFORM_CONFIGS_KEY = 'universal_mines_platform_configs_prod_v1';
 const SIGNALS_KEY = 'universal_mines_signals_prod_v1';
 
 export const DEFAULT_SETTINGS: UserSettings = {
-  selectedPlatform: 'onewin',
-  trapsByPlatform: {
-    bgr8: 3,
-    onewin: 3,
-  },
+  defaultMinesCount: 3,
   recommendedCount: 4,
-  roundsToAnalyse: 25,
+  analysisWindow: '7h',
   generationMode: 'manual',
-  signalRefreshIntervalSec: 15,
-  theme: 'navy',
+  signalRefreshIntervalSec: 30,
+  accentPreference: 'emerald',
+  compactLayout: false,
   soundEnabled: true,
+  outcomeAlertsEnabled: true,
+  autoSyncBackend: true,
   showTileProbabilities: true,
   analysisEngineMode: 'ai_assisted',
-};
-
-export const DEFAULT_PLATFORM_CONFIGS: PlatformConfigsMap = {
-  bgr8: {
-    platform: 'bgr8',
-    gameUrl: '',
-    apiEndpoint: '',
-    integrationMode: 'manual_observation',
-    pollIntervalSec: 15,
-    publicSessionId: '',
-    autoSyncTraps: true,
-    autoDetectNewRound: true,
-    currentRoundId: '',
-    connectionStatus: 'unconfigured',
-    connectionNote:
-      'Configuration required: enter an authorized BGR8 endpoint or use Manual Observation input.',
-    defaultTrapsCount: 3,
-  },
-  onewin: {
-    platform: 'onewin',
-    gameUrl: '',
-    apiEndpoint: '',
-    integrationMode: 'manual_observation',
-    pollIntervalSec: 15,
-    publicSessionId: '',
-    autoSyncTraps: true,
-    autoDetectNewRound: true,
-    currentRoundId: '',
-    connectionStatus: 'unconfigured',
-    connectionNote:
-      'Configuration required: enter an authorized 1win endpoint or use Manual Observation input.',
-    defaultTrapsCount: 3,
-  },
 };
 
 function safeParse<T>(raw: string | null, fallback: T): T {
@@ -71,56 +35,49 @@ function safeParse<T>(raw: string | null, fallback: T): T {
   }
 }
 
+function normalizeAnalysisWindow(raw: unknown): AnalysisWindowSetting {
+  if (raw === '7h') return '7h';
+  if (raw === 10 || raw === 25 || raw === 50 || raw === 0) return raw;
+  return '7h';
+}
+
 export const localMinesRepository = {
   loadSettings(): UserSettings {
-    const parsed = safeParse<Partial<UserSettings>>(
-      localStorage.getItem(SETTINGS_KEY),
-      {}
+    const parsed = safeParse<
+      Partial<UserSettings> & {
+        trapsByPlatform?: Record<string, number>;
+        roundsToAnalyse?: number;
+      }
+    >(localStorage.getItem(SETTINGS_KEY), {});
+
+    // Migrate legacy default traps if present without losing user preference
+    const legacyTraps =
+      parsed.trapsByPlatform?.onewin ?? parsed.trapsByPlatform?.bgr8;
+    const defaultMinesCount = Math.max(
+      1,
+      Math.min(24, Number(parsed.defaultMinesCount ?? legacyTraps ?? 3))
     );
-    const selectedPlatform: PlatformId =
-      parsed.selectedPlatform === 'bgr8' ? 'bgr8' : 'onewin';
-    const trapsByPlatform = {
-      bgr8: Math.max(
-        1,
-        Math.min(24, Number(parsed.trapsByPlatform?.bgr8 ?? 3))
-      ),
-      onewin: Math.max(
-        1,
-        Math.min(24, Number(parsed.trapsByPlatform?.onewin ?? 3))
-      ),
-    };
-    const activeTraps = trapsByPlatform[selectedPlatform];
+
     const recommendedCount = Math.max(
       1,
-      Math.min(25 - activeTraps, Number(parsed.recommendedCount ?? 4))
+      Math.min(25 - defaultMinesCount, Number(parsed.recommendedCount ?? 4))
+    );
+
+    const analysisWindow = normalizeAnalysisWindow(
+      parsed.analysisWindow ?? parsed.roundsToAnalyse
     );
 
     return {
       ...DEFAULT_SETTINGS,
       ...parsed,
-      selectedPlatform,
-      trapsByPlatform,
+      defaultMinesCount,
       recommendedCount,
+      analysisWindow,
     };
   },
 
   saveSettings(settings: UserSettings): void {
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
-  },
-
-  loadPlatformConfigs(): PlatformConfigsMap {
-    const parsed = safeParse<Partial<PlatformConfigsMap>>(
-      localStorage.getItem(PLATFORM_CONFIGS_KEY),
-      {}
-    );
-    return {
-      bgr8: { ...DEFAULT_PLATFORM_CONFIGS.bgr8, ...(parsed.bgr8 ?? {}) },
-      onewin: { ...DEFAULT_PLATFORM_CONFIGS.onewin, ...(parsed.onewin ?? {}) },
-    };
-  },
-
-  savePlatformConfigs(configs: PlatformConfigsMap): void {
-    localStorage.setItem(PLATFORM_CONFIGS_KEY, JSON.stringify(configs));
   },
 
   loadSignals(): SignalRecord[] {
@@ -213,7 +170,7 @@ export function exportSignalsAsJson(signals: SignalRecord[]): string {
   return JSON.stringify(
     {
       exportedAt: new Date().toISOString(),
-      platform: 'Universal Mines AI (BGR8 + 1win)',
+      application: 'Mines Bot',
       signalsCount: signals.length,
       signals,
     },
@@ -224,15 +181,15 @@ export function exportSignalsAsJson(signals: SignalRecord[]): string {
 
 export function exportSignalsAsCsv(signals: SignalRecord[]): string {
   const headers = [
-    'Signal ID',
-    'Platform',
+    'Prediction ID',
     'Timestamp',
-    'Traps',
+    'Mines',
+    'Window',
     'Recommended Path',
-    'Uncertain Tiles',
-    'Theoretical Single Safe %',
-    'Theoretical Joint Survival %',
-    'Risk Level',
+    'Uncertain Cells',
+    'Single Safe %',
+    'Joint Survival %',
+    'Risk Tier',
     'Status',
     'Revealed Safe',
     'Revealed Mines',
@@ -250,9 +207,9 @@ export function exportSignalsAsCsv(signals: SignalRecord[]): string {
   const rows = signals.map((s) =>
     [
       s.id,
-      s.platform,
       s.timestamp,
       s.trapsCount,
+      s.windowLabel ?? 'Previous 7 Hours',
       s.safePath.map((p) => p.label).join(' -> '),
       s.uncertainIndices.join('|'),
       s.theoreticalSingleSafePct,

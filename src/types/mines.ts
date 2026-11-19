@@ -1,5 +1,3 @@
-export type PlatformId = 'bgr8' | 'onewin';
-
 export type RiskLevel = 'LOW RISK' | 'MEDIUM RISK' | 'HIGH RISK';
 
 export type SignalStatus =
@@ -16,13 +14,31 @@ export type TileVisualState =
   | 'revealed_gem'
   | 'revealed_mine';
 
-export type DashboardTheme = 'navy' | 'bgr8-charcoal' | 'slate-light';
+export type AccentPreference = 'emerald' | 'purple' | 'cyan';
 
 export type GenerationMode = 'manual' | 'automatic';
 
 export type AnalysisEngineMode = 'ai_assisted' | 'combinatorial_only';
 
-export type IntegrationMode = 'authorized_api' | 'manual_observation';
+/**
+ * Analysis window selector:
+ * - '7h': Previous 7 hours rolling window (default)
+ * - 10, 25, 50: Most recent N recorded rounds
+ * - 0: All stored rounds
+ */
+export type AnalysisWindowSetting = '7h' | 10 | 25 | 50 | 0;
+
+export type WorkspacePage =
+  | 'overview'
+  | 'analyzer'
+  | 'aviator'
+  | 'platforms'
+  | 'history'
+  | 'performance'
+  | 'settings'
+  | 'help'
+  | 'responsible'
+  | 'admin';
 
 export interface SafePathStep {
   step: number;
@@ -34,48 +50,28 @@ export interface SafePathStep {
   theoreticalConfidencePct: number;
 }
 
-export interface PlatformIntegrationConfig {
-  platform: PlatformId;
-  gameUrl: string;
-  apiEndpoint: string;
-  integrationMode: IntegrationMode;
-  pollIntervalSec: number;
-  publicSessionId: string;
-  autoSyncTraps: boolean;
-  autoDetectNewRound: boolean;
-  currentRoundId: string;
-  lastDetectedRoundId?: string;
-  connectionStatus: 'unconfigured' | 'verified' | 'unreachable';
-  connectionNote?: string;
-  lastCheckedAt?: string;
-  defaultTrapsCount: number;
-}
-
-export interface PlatformConfigsMap {
-  bgr8: PlatformIntegrationConfig;
-  onewin: PlatformIntegrationConfig;
-}
-
 export interface UserSettings {
-  selectedPlatform: PlatformId;
-  trapsByPlatform: Record<PlatformId, number>;
+  defaultMinesCount: number;
   recommendedCount: number;
-  roundsToAnalyse: number;
+  analysisWindow: AnalysisWindowSetting;
   generationMode: GenerationMode;
   signalRefreshIntervalSec: number;
-  theme: DashboardTheme;
+  accentPreference: AccentPreference;
+  compactLayout: boolean;
   soundEnabled: boolean;
+  outcomeAlertsEnabled: boolean;
+  autoSyncBackend: boolean;
   showTileProbabilities: boolean;
   analysisEngineMode: AnalysisEngineMode;
 }
 
 export interface SignalRecord {
   id: string;
-  platform: PlatformId;
   timestamp: string;
   trapsCount: number;
   recommendedCount: number;
   roundsAnalysedCount: number;
+  windowLabel?: string;
   recommendedIndices: number[];
   uncertainIndices: number[];
   safePath: SafePathStep[];
@@ -89,18 +85,6 @@ export interface SignalRecord {
   engineMode: AnalysisEngineMode;
   aiSummary: string;
   riskNote: string;
-  sourceMode: IntegrationMode;
-  roundRef?: string;
-}
-
-export interface PlatformPerformance {
-  platform: PlatformId;
-  platformName: string;
-  signalsCount: number;
-  evaluatedRounds: number;
-  correctRecommendations: number;
-  incorrectRecommendations: number;
-  measuredSafeRatePct: number | null;
 }
 
 export interface TrapConfigPerformance {
@@ -117,12 +101,15 @@ export interface PerformanceMetrics {
   totalSignals: number;
   evaluatedRounds: number;
   pendingRounds: number;
+  evaluationCoveragePct: number | null;
   correctRecommendations: number;
   incorrectRecommendations: number;
   totalEvaluatedPicks: number;
   measuredSafeRatePct: number | null;
   theoreticalAvgSingleSafePct: number | null;
-  byPlatform: PlatformPerformance[];
+  sevenHourSignals: number;
+  sevenHourEvaluatedRounds: number;
+  sevenHourAccuracyPct: number | null;
   byTrapConfig: TrapConfigPerformance[];
   lastTenSignals: SignalRecord[];
 }
@@ -134,3 +121,122 @@ export interface EmpiricalTileStats {
   observedMineCount: number;
   empiricalSafeRatePct: number | null;
 }
+
+export type GameCompatibilityStatus =
+  | 'Verified'
+  | 'Available but not integrated'
+  | 'Integration available'
+  | 'Unsupported'
+  | 'Under verification';
+
+export type LicensingStatus =
+  | 'Pending Verification'
+  | 'Verified Kenyan License'
+  | 'Unverified / Offshore'
+  | 'Restricted';
+
+export type PlatformAvailability =
+  | 'Active Candidate'
+  | 'Geo / Access Restricted'
+  | 'Offline'
+  | 'Custom';
+
+export type AdapterType =
+  | 'none'
+  | 'authorized_json_feed'
+  | 'public_provably_fair_api'
+  | 'custom_webhook_feed';
+
+export type HealthStatus =
+  | 'Not Configured'
+  | 'Healthy'
+  | 'Degraded'
+  | 'Disabled';
+
+export type PlatformGameType = 'mines' | 'aviator';
+
+export type ConnectionRealStatus =
+  | 'Connected'
+  | 'Authorized'
+  | 'Verification Required'
+  | 'Authorization Required'
+  | 'Sync Error'
+  | 'Expired'
+  | 'Disconnected'
+  | 'Unsupported';
+
+export interface BettingPlatform {
+  id: string;
+  name: string;
+  shortCode: string;
+  brandColor: string;
+  officialWebsite: string | null;
+  allowedDomains: string[];
+  bclbStatus: LicensingStatus;
+  licenseNumber: string;
+  availabilityStatus: PlatformAvailability;
+  minesCompatibility: GameCompatibilityStatus;
+  aviatorCompatibility: GameCompatibilityStatus;
+  adapterId: string;
+  adapterType: AdapterType;
+  feedEndpoint?: string | null;
+  hasConfiguredFeed?: boolean;
+  enabled: boolean;
+  healthStatus: HealthStatus;
+  lastHealthCheckAt: string | null;
+  notes: string;
+  isCustomSlot?: boolean;
+  updatedAt: string;
+}
+
+export interface PlatformConnection {
+  id: string;
+  platformId: string;
+  platformName: string;
+  shortCode: string;
+  brandColor: string;
+  websiteUrl: string;
+  authorizedFeedUrl: string | null;
+  selectedGame: PlatformGameType;
+  supportedGames: PlatformGameType[];
+  connectionStatus: ConnectionRealStatus;
+  statusMessage: string;
+  hasAuthToken: boolean;
+  lastSyncAt: string | null;
+  syncedRoundsCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface VerificationPipelineStep {
+  step: number;
+  key: string;
+  label: string;
+  status: 'passed' | 'warning' | 'failed' | 'pending';
+  detail: string;
+}
+
+export interface SyncedMinesRound {
+  id: string;
+  connectionId: string;
+  platformId: string;
+  platformName: string;
+  roundId: string;
+  timestamp: string;
+  minesCount: number;
+  revealedSafeIndices: number[];
+  revealedMineIndices: number[];
+  sourceMode: 'authorized_feed';
+}
+
+export interface SyncedAviatorRound {
+  id: string;
+  connectionId: string;
+  platformId: string;
+  platformName: string;
+  roundId: string;
+  timestamp: string;
+  multiplier: number;
+  sourceMode: 'authorized_feed';
+}
+

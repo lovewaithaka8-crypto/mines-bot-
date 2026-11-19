@@ -6,6 +6,25 @@ import crypto from 'crypto';
 import zlib from 'zlib';
 import { fileURLToPath } from 'url';
 import { GoogleGenAI, Type } from '@google/genai';
+import {
+  INITIAL_KENYAN_PLATFORMS,
+  type PlatformDirectoryEntry,
+} from './server/platformRegistry.ts';
+import {
+  executePlatformAdapterConnect,
+  runPlatformHealthCheck,
+  type ConnectionRealStatus,
+  type SelectedPlatformGame,
+  type SyncedAviatorRound,
+  type SyncedMinesRound,
+} from './server/platformAdapters.ts';
+import {
+  checkRateLimit,
+  decryptToken,
+  encryptToken,
+  getOrCreateWorkspaceSession,
+  validateExternalHttpsUrl,
+} from './server/platformSecurity.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -31,9 +50,8 @@ interface ContactMessage {
 }
 
 interface SystemSettingsRecord {
-  bgr8Enabled: boolean;
-  onewinEnabled: boolean;
   aiAnalysisEnabled: boolean;
+  defaultSevenHourWindow: boolean;
   maxStoredSignals: number;
   maintenanceNotice: string;
   updatedAt: string;
@@ -41,12 +59,23 @@ interface SystemSettingsRecord {
 
 interface ServerSignalEntry {
   id: string;
-  platform: 'bgr8' | 'onewin';
   timestamp: string;
   trapsCount: number;
   recommendedCount: number;
+  roundsAnalysedCount?: number;
+  windowLabel?: string;
   recommendedIndices: number[];
   uncertainIndices: number[];
+  safePath?: Array<{
+    step: number;
+    index: number;
+    row: number;
+    col: number;
+    coord: string;
+    label: string;
+    theoreticalConfidencePct: number;
+  }>;
+  tileConfidenceMap?: Record<number, number>;
   theoreticalSingleSafePct: number;
   theoreticalJointSurvivalPct: number;
   riskLevel: string;
@@ -56,7 +85,35 @@ interface ServerSignalEntry {
   engineMode: string;
   aiSummary: string;
   riskNote: string;
-  sourceMode: string;
+}
+
+interface StoredPlatformConnection {
+  id: string;
+  workspaceOwnerId: string;
+  platformId: string;
+  platformName: string;
+  shortCode: string;
+  brandColor: string;
+  websiteUrl: string;
+  authorizedFeedUrl: string | null;
+  selectedGame: SelectedPlatformGame;
+  supportedGames: SelectedPlatformGame[];
+  connectionStatus: ConnectionRealStatus;
+  statusMessage: string;
+  encryptedAuthToken: string | null;
+  hasAuthToken: boolean;
+  lastSyncAt: string | null;
+  syncedRoundsCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface StoredMinesRoundRecord extends SyncedMinesRound {
+  workspaceOwnerId: string;
+}
+
+interface StoredAviatorRoundRecord extends SyncedAviatorRound {
+  workspaceOwnerId: string;
 }
 
 interface DatabaseSchema {
@@ -64,6 +121,10 @@ interface DatabaseSchema {
   activityLogs: ActivityLogEntry[];
   contactMessages: ContactMessage[];
   systemConfig: SystemSettingsRecord;
+  platforms: PlatformDirectoryEntry[];
+  platformConnections: StoredPlatformConnection[];
+  syncedMinesRounds: StoredMinesRoundRecord[];
+  syncedAviatorRounds: StoredAviatorRoundRecord[];
 }
 
 const DEFAULT_DB: DatabaseSchema = {
@@ -71,13 +132,16 @@ const DEFAULT_DB: DatabaseSchema = {
   activityLogs: [],
   contactMessages: [],
   systemConfig: {
-    bgr8Enabled: true,
-    onewinEnabled: true,
     aiAnalysisEnabled: true,
+    defaultSevenHourWindow: true,
     maxStoredSignals: 500,
     maintenanceNotice: '',
     updatedAt: new Date().toISOString(),
   },
+  platforms: structuredClone(INITIAL_KENYAN_PLATFORMS),
+  platformConnections: [],
+  syncedMinesRounds: [],
+  syncedAviatorRounds: [],
 };
 
 function readDb(): DatabaseSchema {
@@ -91,6 +155,16 @@ function readDb(): DatabaseSchema {
     }
     const raw = fs.readFileSync(DB_FILE, 'utf8');
     const parsed = JSON.parse(raw) as Partial<DatabaseSchema>;
+    const rawCfg = (parsed.systemConfig ?? {}) as Partial<SystemSettingsRecord>;
+    const existingPlatforms = Array.isArray(parsed.platforms)
+      ? parsed.platforms
+      : [];
+    const existingIds = new Set(existingPlatforms.map((p) => p.id));
+    const mergedPlatforms = [
+      ...existingPlatforms,
+      ...INITIAL_KENYAN_PLATFORMS.filter((p) => !existingIds.has(p.id)),
+    ];
+
     return {
       signals: Array.isArray(parsed.signals) ? parsed.signals : [],
       activityLogs: Array.isArray(parsed.activityLogs)
@@ -100,9 +174,37 @@ function readDb(): DatabaseSchema {
         ? parsed.contactMessages
         : [],
       systemConfig: {
-        ...DEFAULT_DB.systemConfig,
-        ...(parsed.systemConfig ?? {}),
+        aiAnalysisEnabled:
+          typeof rawCfg.aiAnalysisEnabled === 'boolean'
+            ? rawCfg.aiAnalysisEnabled
+            : DEFAULT_DB.systemConfig.aiAnalysisEnabled,
+        defaultSevenHourWindow:
+          typeof rawCfg.defaultSevenHourWindow === 'boolean'
+            ? rawCfg.defaultSevenHourWindow
+            : DEFAULT_DB.systemConfig.defaultSevenHourWindow,
+        maxStoredSignals:
+          typeof rawCfg.maxStoredSignals === 'number'
+            ? rawCfg.maxStoredSignals
+            : DEFAULT_DB.systemConfig.maxStoredSignals,
+        maintenanceNotice:
+          typeof rawCfg.maintenanceNotice === 'string'
+            ? rawCfg.maintenanceNotice
+            : '',
+        updatedAt:
+          typeof rawCfg.updatedAt === 'string'
+            ? rawCfg.updatedAt
+            : new Date().toISOString(),
       },
+      platforms: mergedPlatforms,
+      platformConnections: Array.isArray(parsed.platformConnections)
+        ? parsed.platformConnections
+        : [],
+      syncedMinesRounds: Array.isArray(parsed.syncedMinesRounds)
+        ? parsed.syncedMinesRounds
+        : [],
+      syncedAviatorRounds: Array.isArray(parsed.syncedAviatorRounds)
+        ? parsed.syncedAviatorRounds
+        : [],
     };
   } catch {
     return structuredClone(DEFAULT_DB);
@@ -137,7 +239,7 @@ function getGeminiClient(): GoogleGenAI {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     throw new Error(
-      'GEMINI_API_KEY is not configured. Add it in Settings > Secrets or use Combinatorial Math mode.'
+      'GEMINI_API_KEY is not configured. Add it in Settings > Secrets or use Combinatorial Math Only mode.'
     );
   }
   return new GoogleGenAI({
@@ -196,7 +298,7 @@ const app = express();
 app.disable('x-powered-by');
 app.set('etag', 'strong');
 
-// Built-in lightweight gzip compression for JSON/text responses > 1KB
+// Built-in lightweight gzip compression for JSON payloads > 1KB
 app.use((req, res, next) => {
   const accept = String(req.headers['accept-encoding'] || '');
   if (!accept.includes('gzip')) {
@@ -233,33 +335,26 @@ app.get('/api/system/status', (_req, res) => {
   const db = readDb();
   res.setHeader('Cache-Control', 'private, max-age=10');
   res.json({
-    bgr8Enabled: db.systemConfig.bgr8Enabled,
-    onewinEnabled: db.systemConfig.onewinEnabled,
+    engineReady: true,
     aiAnalysisEnabled:
       db.systemConfig.aiAnalysisEnabled && Boolean(process.env.GEMINI_API_KEY),
+    defaultSevenHourWindow: db.systemConfig.defaultSevenHourWindow,
     maintenanceNotice: db.systemConfig.maintenanceNotice,
     adminConfigured: Boolean(process.env.ADMIN_ACCESS_KEY?.trim()),
+    storedSignalsCount: db.signals.length,
   });
 });
 
 // Signal Persistence Endpoints (Paginated Real File-Backed Node.js Storage)
 app.get('/api/signals', (req, res) => {
   const db = readDb();
-  const platform =
-    req.query.platform === 'bgr8' || req.query.platform === 'onewin'
-      ? req.query.platform
-      : null;
   const limit = Math.max(1, Math.min(500, Number(req.query.limit ?? 100) || 100));
   const offset = Math.max(0, Number(req.query.offset ?? 0) || 0);
 
-  const filtered = platform
-    ? db.signals.filter((s) => s.platform === platform)
-    : db.signals;
-
   res.setHeader('Cache-Control', 'no-cache');
   res.json({
-    signals: filtered.slice(offset, offset + limit),
-    total: filtered.length,
+    signals: db.signals.slice(offset, offset + limit),
+    total: db.signals.length,
     limit,
     offset,
   });
@@ -281,7 +376,7 @@ app.post('/api/signals', (req, res) => {
   appendLog(
     'info',
     'signal_recorded',
-    `Saved signal ${signal.id} (${signal.platform}, ${signal.trapsCount} traps).`
+    `Saved prediction ${signal.id} (${signal.trapsCount} mines, ${signal.windowLabel ?? '7h window'}).`
   );
   res.status(201).json({ signal });
 });
@@ -297,7 +392,7 @@ app.patch('/api/signals/:id/outcome', (req, res) => {
   const db = readDb();
   const targetIdx = db.signals.findIndex((s) => s.id === id);
   if (targetIdx === -1) {
-    res.status(404).json({ error: 'Signal not found on server.' });
+    res.status(404).json({ error: 'Prediction record not found on server.' });
     return;
   }
 
@@ -312,7 +407,7 @@ app.patch('/api/signals/:id/outcome', (req, res) => {
     status: body.status || db.signals[targetIdx].status,
   };
   writeDb(db);
-  appendLog('info', 'signal_evaluated', `Updated outcome for signal ${id}.`);
+  appendLog('info', 'signal_evaluated', `Updated verified outcome for ${id}.`);
   res.json({ signal: db.signals[targetIdx] });
 });
 
@@ -321,7 +416,7 @@ app.delete('/api/signals/:id', (req, res) => {
   const db = readDb();
   db.signals = db.signals.filter((s) => s.id !== id);
   writeDb(db);
-  appendLog('info', 'signal_deleted', `Deleted signal ${id}.`);
+  appendLog('info', 'signal_deleted', `Deleted prediction ${id}.`);
   res.json({ deleted: true });
 });
 
@@ -330,7 +425,7 @@ app.delete('/api/signals', (_req, res) => {
   const count = db.signals.length;
   db.signals = [];
   writeDb(db);
-  appendLog('info', 'signals_cleared', `Cleared ${count} stored signals.`);
+  appendLog('info', 'signals_cleared', `Cleared ${count} stored predictions.`);
   res.json({ cleared: true, count });
 });
 
@@ -370,12 +465,12 @@ app.post('/api/contact', (req, res) => {
   });
 });
 
-// AI Analysis Endpoint
+// Standalone Mines Bot AI Statistical Analysis Endpoint
 interface AnalyzeRequestBody {
-  platform: 'bgr8' | 'onewin';
   trapsCount: number;
   recommendedCount: number;
   roundsAnalysedCount: number;
+  windowLabel?: string;
   theoreticalSingleSafePct: number;
   theoreticalJointSurvivalPct: number;
   riskLevel: string;
@@ -388,7 +483,6 @@ interface AnalyzeRequestBody {
     observedSafe: number;
     observedMine: number;
   }>;
-  sourceMode: string;
 }
 
 app.post('/api/analyze', async (req, res) => {
@@ -402,45 +496,44 @@ app.post('/api/analyze', async (req, res) => {
     }
 
     const body = req.body as AnalyzeRequestBody;
-    const platformName = body.platform === 'onewin' ? '1win Mines' : 'BGR8 Mines';
     const trapsCount = Math.max(1, Math.min(24, Number(body.trapsCount || 3)));
     const recommendedCount = Math.max(
       1,
       Math.min(25 - trapsCount, Number(body.recommendedCount || 4))
     );
+    const windowLabel = body.windowLabel || 'Previous 7 Hours';
 
     const ai = getGeminiClient();
 
     const prompt = [
-      `You are the probability and signal analysis engine for ${platformName} (5x5 grid, 25 tiles indexed 0..24).`,
+      'You are the statistical probability engine for Mines Bot (standalone 5x5 grid, 25 cells indexed 0..24).',
       'Strict rules:',
-      '1. Never claim to know hidden server-side mine locations or RNG seeds.',
-      '2. Never label any unknown tile as a confirmed mine.',
-      '3. Never fabricate a 90% accuracy rating or guarantee wins.',
-      '4. recommendedIndices (GREEN) and uncertainIndices (ORANGE) must be mutually disjoint integers in 0..24.',
-      '5. recommendedIndices must be ordered as the suggested selection path.',
+      '1. Never claim to know hidden mine locations or predict random outcomes with certainty.',
+      '2. Never label any unknown cell as a confirmed mine.',
+      '3. Never fabricate accuracy percentages or guarantee wins.',
+      '4. recommendedIndices and uncertainIndices must be mutually disjoint integers in 0..24.',
+      '5. recommendedIndices must be ordered as the suggested selection sequence.',
+      '6. Clearly distinguish observed historical frequency from estimated future probability.',
       '',
-      `Platform: ${platformName}`,
-      `Trap Configuration: ${trapsCount} traps on 25 tiles, ${recommendedCount} recommended steps.`,
-      `Theoretical Single-Tile Safety: ${body.theoreticalSingleSafePct}%`,
+      `Mine Configuration: ${trapsCount} mines on 25 cells, ${recommendedCount} recommended cells.`,
+      `Theoretical Single-Cell Safety: ${body.theoreticalSingleSafePct}%`,
       `Theoretical Joint Survival (${recommendedCount} steps): ${body.theoreticalJointSurvivalPct}%`,
       `Risk Tier: ${body.riskLevel}`,
-      `Rounds Window Analysed: ${body.roundsAnalysedCount} (${body.evaluatedRoundsCount} evaluated)`,
-      `Measured Safe-Selection Rate: ${
+      `Analysis Window: ${windowLabel} (${body.roundsAnalysedCount} rounds, ${body.evaluatedRoundsCount} evaluated)`,
+      `Verified Historical Safe Rate: ${
         body.measuredSafeRatePct === null
-          ? 'No evaluated rounds yet'
+          ? 'No evaluated rounds recorded in this window yet'
           : `${body.measuredSafeRatePct}%`
       }`,
-      `Baseline Recommended Path Candidates (ordered): ${JSON.stringify(
+      `Baseline Recommended Candidates (ordered): ${JSON.stringify(
         body.candidateSafeIndices
       )}`,
-      `Baseline Uncertain Variance Candidates (ORANGE): ${JSON.stringify(
+      `Baseline Uncertain Variance Candidates: ${JSON.stringify(
         body.candidateUncertainIndices
       )}`,
-      `Observed Empirical Tile History: ${JSON.stringify(
+      `Observed Historical Cell Frequencies: ${JSON.stringify(
         body.empiricalHighlights ?? []
       )}`,
-      `Integration Mode: ${body.sourceMode}`,
     ].join('\n');
 
     const response = await ai.models.generateContent({
@@ -448,7 +541,7 @@ app.post('/api/analyze', async (req, res) => {
       contents: prompt,
       config: {
         systemInstruction:
-          'Respond strictly in JSON matching the requested schema. Keep summaries concise (2-3 crisp sentences), mathematically honest, and transparent about independent RNG.',
+          'Respond strictly in JSON matching the requested schema. Keep summaries concise (2-3 clear sentences), mathematically accurate, and honest about the limitations of statistical estimates on independent random rounds.',
         responseMimeType: 'application/json',
         responseSchema: {
           type: Type.OBJECT,
@@ -546,7 +639,7 @@ app.post('/api/analyze', async (req, res) => {
     appendLog(
       'info',
       'ai_analysis',
-      `Generated AI analysis for ${platformName} (${trapsCount} traps).`
+      `Generated Mines Bot analysis (${trapsCount} mines, ${windowLabel}).`
     );
 
     res.json({
@@ -571,108 +664,6 @@ app.post('/api/analyze', async (req, res) => {
   }
 });
 
-// Platform Endpoint Probe
-app.post('/api/bgr8/probe', async (req, res) => {
-  const payload = req.body as Record<string, unknown>;
-  if ('password' in payload || 'pass' in payload) {
-    res.status(400).json({
-      error:
-        'Security policy: platform passwords are never accepted, transmitted, or stored.',
-    });
-    return;
-  }
-
-  const platform = payload.platform === 'onewin' ? '1win Mines' : 'BGR8 Mines';
-  const gameUrl = typeof payload.gameUrl === 'string' ? payload.gameUrl.trim() : '';
-  const apiEndpoint =
-    typeof payload.apiEndpoint === 'string' ? payload.apiEndpoint.trim() : '';
-  const targetToProbe = apiEndpoint || gameUrl;
-
-  if (!targetToProbe) {
-    res.json({
-      validUrl: false,
-      reachable: false,
-      statusCode: null,
-      latencyMs: null,
-      normalizedDomain: null,
-      message: `${platform} integration requires a valid endpoint or game URL. Missing authorization/configuration.`,
-      checkedAt: new Date().toISOString(),
-      capabilities: ['manual_input'],
-    });
-    return;
-  }
-
-  let parsedUrl: URL;
-  try {
-    parsedUrl = new URL(targetToProbe);
-    if (parsedUrl.protocol !== 'https:' && parsedUrl.protocol !== 'http:') {
-      throw new Error('Invalid protocol');
-    }
-  } catch {
-    res.json({
-      validUrl: false,
-      reachable: false,
-      statusCode: null,
-      latencyMs: null,
-      normalizedDomain: null,
-      message: 'Invalid URL format. Include https:// or http://.',
-      checkedAt: new Date().toISOString(),
-      capabilities: ['manual_input'],
-    });
-    return;
-  }
-
-  const startedAt = Date.now();
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 3500);
-    const probeRes = await fetch(parsedUrl.toString(), {
-      method: 'HEAD',
-      signal: controller.signal,
-      redirect: 'follow',
-    });
-    clearTimeout(timeoutId);
-
-    const latencyMs = Date.now() - startedAt;
-    appendLog(
-      'info',
-      'platform_probe',
-      `${platform} endpoint ${parsedUrl.hostname} returned HTTP ${probeRes.status} (${latencyMs}ms).`
-    );
-
-    res.json({
-      validUrl: true,
-      reachable: probeRes.status < 500,
-      statusCode: probeRes.status,
-      latencyMs,
-      normalizedDomain: parsedUrl.hostname,
-      message: `${platform} endpoint responded with HTTP ${probeRes.status} in ${latencyMs}ms.`,
-      checkedAt: new Date().toISOString(),
-      capabilities: ['read_only_metadata', 'round_sync', 'manual_input'],
-    });
-  } catch (err) {
-    const latencyMs = Date.now() - startedAt;
-    const reason =
-      err instanceof Error ? err.message : 'Network request could not reach host.';
-    appendLog(
-      'warn',
-      'platform_probe',
-      `${platform} endpoint ${parsedUrl.hostname} unreachable: ${reason}`
-    );
-
-    res.json({
-      validUrl: true,
-      reachable: false,
-      statusCode: null,
-      latencyMs,
-      normalizedDomain: parsedUrl.hostname,
-      message: `URL is valid (${parsedUrl.hostname}), but remote host was unreachable (${reason}). Integration status remains unverified.`,
-      checkedAt: new Date().toISOString(),
-      capabilities: ['manual_input'],
-    });
-  }
-});
-
 // Backend-Protected Administration Routes
 app.get('/api/admin/overview', (req, res) => {
   if (!verifyAdminKey(req, res)) return;
@@ -693,7 +684,7 @@ app.get('/api/admin/overview', (req, res) => {
     securityStatus: {
       geminiKeyConfigured: Boolean(process.env.GEMINI_API_KEY),
       adminKeyConfigured: Boolean(process.env.ADMIN_ACCESS_KEY),
-      directAccessEnabled: true,
+      standaloneMode: true,
     },
   });
 });
@@ -703,18 +694,14 @@ app.put('/api/admin/config', (req, res) => {
   const body = req.body as Partial<SystemSettingsRecord>;
   const db = readDb();
   db.systemConfig = {
-    bgr8Enabled:
-      typeof body.bgr8Enabled === 'boolean'
-        ? body.bgr8Enabled
-        : db.systemConfig.bgr8Enabled,
-    onewinEnabled:
-      typeof body.onewinEnabled === 'boolean'
-        ? body.onewinEnabled
-        : db.systemConfig.onewinEnabled,
     aiAnalysisEnabled:
       typeof body.aiAnalysisEnabled === 'boolean'
         ? body.aiAnalysisEnabled
         : db.systemConfig.aiAnalysisEnabled,
+    defaultSevenHourWindow:
+      typeof body.defaultSevenHourWindow === 'boolean'
+        ? body.defaultSevenHourWindow
+        : db.systemConfig.defaultSevenHourWindow,
     maxStoredSignals: Math.max(
       50,
       Math.min(5000, Number(body.maxStoredSignals ?? db.systemConfig.maxStoredSignals))
@@ -725,7 +712,7 @@ app.put('/api/admin/config', (req, res) => {
     updatedAt: new Date().toISOString(),
   };
   writeDb(db);
-  appendLog('info', 'admin_config', 'Administrator updated system configuration.');
+  appendLog('info', 'admin_config', 'Administrator updated Mines Bot configuration.');
   res.json({ systemConfig: db.systemConfig });
 });
 
@@ -735,6 +722,609 @@ app.delete('/api/admin/logs', (req, res) => {
   db.activityLogs = [];
   writeDb(db);
   res.json({ cleared: true });
+});
+
+/* ---------------- Kenyan Platform Directory & Integration Routes ---------------- */
+
+function sanitizePlatformForPublic(p: PlatformDirectoryEntry) {
+  return {
+    id: p.id,
+    name: p.name,
+    shortCode: p.shortCode,
+    brandColor: p.brandColor,
+    officialWebsite: p.officialWebsite,
+    allowedDomains: p.allowedDomains,
+    bclbStatus: p.bclbStatus,
+    licenseNumber: p.licenseNumber,
+    availabilityStatus: p.availabilityStatus,
+    minesCompatibility: p.minesCompatibility,
+    aviatorCompatibility: p.aviatorCompatibility,
+    adapterId: p.adapterId,
+    adapterType: p.adapterType,
+    hasConfiguredFeed: Boolean(p.feedEndpoint),
+    enabled: p.enabled,
+    healthStatus: p.healthStatus,
+    lastHealthCheckAt: p.lastHealthCheckAt,
+    notes: p.notes,
+    isCustomSlot: Boolean(p.isCustomSlot),
+    updatedAt: p.updatedAt,
+  };
+}
+
+function sanitizeConnectionForClient(c: StoredPlatformConnection) {
+  return {
+    id: c.id,
+    platformId: c.platformId,
+    platformName: c.platformName,
+    shortCode: c.shortCode,
+    brandColor: c.brandColor,
+    websiteUrl: c.websiteUrl,
+    authorizedFeedUrl: c.authorizedFeedUrl,
+    selectedGame: c.selectedGame,
+    supportedGames: c.supportedGames,
+    connectionStatus: c.connectionStatus,
+    statusMessage: c.statusMessage,
+    hasAuthToken: c.hasAuthToken,
+    lastSyncAt: c.lastSyncAt,
+    syncedRoundsCount: c.syncedRoundsCount,
+    createdAt: c.createdAt,
+    updatedAt: c.updatedAt,
+  };
+}
+
+app.get('/api/platforms', (req, res) => {
+  const workspaceId = getOrCreateWorkspaceSession(req, res);
+  const db = readDb();
+  const userConnections = db.platformConnections.filter(
+    (c) => c.workspaceOwnerId === workspaceId
+  );
+  res.setHeader('Cache-Control', 'no-cache');
+  res.json({
+    platforms: db.platforms.map(sanitizePlatformForPublic),
+    userConnectionsCount: userConnections.length,
+  });
+});
+
+app.get('/api/platforms/connections', (req, res) => {
+  const workspaceId = getOrCreateWorkspaceSession(req, res);
+  const db = readDb();
+  const connections = db.platformConnections
+    .filter((c) => c.workspaceOwnerId === workspaceId)
+    .map(sanitizeConnectionForClient);
+  res.setHeader('Cache-Control', 'no-cache');
+  res.json({ connections });
+});
+
+app.get('/api/platforms/synced-data', (req, res) => {
+  const workspaceId = getOrCreateWorkspaceSession(req, res);
+  const db = readDb();
+  const minesRounds = db.syncedMinesRounds
+    .filter((r) => r.workspaceOwnerId === workspaceId)
+    .map(({ workspaceOwnerId: _owner, ...rest }) => rest);
+  const aviatorRounds = db.syncedAviatorRounds
+    .filter((r) => r.workspaceOwnerId === workspaceId)
+    .map(({ workspaceOwnerId: _owner, ...rest }) => rest);
+
+  res.setHeader('Cache-Control', 'no-cache');
+  res.json({ minesRounds, aviatorRounds });
+});
+
+app.post('/api/platforms/connect', async (req, res) => {
+  const workspaceId = getOrCreateWorkspaceSession(req, res);
+  const limitCheck = checkRateLimit(`connect:${workspaceId}`, 12, 60_000);
+  if (!limitCheck.allowed) {
+    res.status(429).json({
+      error: `Too many connection attempts. Try again in ${limitCheck.retryAfterSec}s.`,
+    });
+    return;
+  }
+
+  const body = req.body as {
+    platformId?: string;
+    customPlatformName?: string;
+    websiteUrl?: string;
+    selectedGame?: SelectedPlatformGame;
+    authorizedFeedUrl?: string;
+    authToken?: string;
+  };
+
+  const platformId = String(body.platformId || '').trim();
+  const selectedGame: SelectedPlatformGame =
+    body.selectedGame === 'aviator' ? 'aviator' : 'mines';
+  const websiteUrl = String(body.websiteUrl || '').trim();
+  const authorizedFeedUrl = String(body.authorizedFeedUrl || '').trim() || null;
+  const rawToken = String(body.authToken || '').trim() || null;
+
+  const db = readDb();
+  const platform = db.platforms.find((p) => p.id === platformId);
+  if (!platform) {
+    res.status(404).json({ error: 'Selected platform not found in directory.' });
+    return;
+  }
+
+  const connectionId = `CONN-${crypto.randomBytes(5).toString('hex').toUpperCase()}`;
+  const result = await executePlatformAdapterConnect({
+    platform,
+    websiteUrl,
+    selectedGame,
+    authorizedFeedUrl,
+    authToken: rawToken,
+    connectionId,
+  });
+
+  // Update platform health if its configured feed was exercised
+  if (platform.feedEndpoint) {
+    const pIdx = db.platforms.findIndex((p) => p.id === platform.id);
+    if (pIdx !== -1) {
+      db.platforms[pIdx] = {
+        ...db.platforms[pIdx],
+        healthStatus: result.connected ? 'Healthy' : 'Degraded',
+        lastHealthCheckAt: new Date().toISOString(),
+      };
+    }
+  }
+
+  const now = new Date().toISOString();
+  const supportedGames: SelectedPlatformGame[] = [];
+  if (platform.minesCompatibility !== 'Unsupported') supportedGames.push('mines');
+  if (platform.aviatorCompatibility !== 'Unsupported') supportedGames.push('aviator');
+
+  const displayName =
+    platform.isCustomSlot && body.customPlatformName?.trim()
+      ? body.customPlatformName.trim().slice(0, 60)
+      : platform.name;
+
+  const urlParsed = validateExternalHttpsUrl(websiteUrl);
+  const connectionRecord: StoredPlatformConnection = {
+    id: connectionId,
+    workspaceOwnerId: workspaceId,
+    platformId: platform.id,
+    platformName: displayName,
+    shortCode: platform.shortCode,
+    brandColor: platform.brandColor,
+    websiteUrl: urlParsed.normalizedUrl || websiteUrl,
+    authorizedFeedUrl,
+    selectedGame,
+    supportedGames: supportedGames.length > 0 ? supportedGames : [selectedGame],
+    connectionStatus: result.connectionStatus,
+    statusMessage: result.statusMessage,
+    encryptedAuthToken: rawToken ? encryptToken(rawToken) : null,
+    hasAuthToken: Boolean(rawToken),
+    lastSyncAt: result.connected ? now : null,
+    syncedRoundsCount: result.minesRounds.length + result.aviatorRounds.length,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  // Only persist connection entry if URL itself was syntactically valid & safe host
+  const urlStepPassed =
+    result.steps.find((s) => s.key === 'url_validation')?.status === 'passed' &&
+    result.steps.find((s) => s.key === 'domain_match')?.status === 'passed' &&
+    result.steps.find((s) => s.key === 'ssrf_dns_check')?.status === 'passed';
+
+  if (urlStepPassed) {
+    db.platformConnections = [
+      connectionRecord,
+      ...db.platformConnections,
+    ].slice(0, 200);
+
+    if (result.minesRounds.length > 0) {
+      const taggedMines = result.minesRounds.map((r) => ({
+        ...r,
+        workspaceOwnerId: workspaceId,
+      }));
+      db.syncedMinesRounds = [...taggedMines, ...db.syncedMinesRounds].slice(
+        0,
+        1000
+      );
+    }
+
+    if (result.aviatorRounds.length > 0) {
+      const taggedAviator = result.aviatorRounds.map((r) => ({
+        ...r,
+        workspaceOwnerId: workspaceId,
+      }));
+      db.syncedAviatorRounds = [
+        ...taggedAviator,
+        ...db.syncedAviatorRounds,
+      ].slice(0, 1500);
+    }
+    writeDb(db);
+  }
+
+  appendLog(
+    result.connected ? 'info' : 'warn',
+    'platform_connect',
+    `${displayName} (${selectedGame}) -> ${result.connectionStatus}: ${result.statusMessage}`
+  );
+
+  res.status(urlStepPassed ? 200 : 400).json({
+    connected: result.connected,
+    connection: urlStepPassed ? sanitizeConnectionForClient(connectionRecord) : null,
+    steps: result.steps,
+    statusMessage: result.statusMessage,
+    syncedCount: result.minesRounds.length + result.aviatorRounds.length,
+  });
+});
+
+app.post('/api/platforms/connections/:id/refresh', async (req, res) => {
+  const workspaceId = getOrCreateWorkspaceSession(req, res);
+  const limitCheck = checkRateLimit(`refresh:${workspaceId}`, 20, 60_000);
+  if (!limitCheck.allowed) {
+    res.status(429).json({
+      error: `Rate limit reached. Retry in ${limitCheck.retryAfterSec}s.`,
+    });
+    return;
+  }
+
+  const db = readDb();
+  const idx = db.platformConnections.findIndex(
+    (c) => c.id === req.params.id && c.workspaceOwnerId === workspaceId
+  );
+  if (idx === -1) {
+    res.status(404).json({ error: 'Connection not found in your workspace.' });
+    return;
+  }
+
+  const conn = db.platformConnections[idx];
+  if (conn.connectionStatus === 'Disconnected') {
+    res.status(400).json({
+      error: 'Connection is disconnected. Use Reconnect first.',
+    });
+    return;
+  }
+
+  const platform = db.platforms.find((p) => p.id === conn.platformId);
+  if (!platform) {
+    res.status(404).json({ error: 'Platform registry entry missing.' });
+    return;
+  }
+
+  const token = conn.encryptedAuthToken
+    ? decryptToken(conn.encryptedAuthToken)
+    : null;
+
+  const result = await executePlatformAdapterConnect({
+    platform,
+    websiteUrl: conn.websiteUrl,
+    selectedGame: conn.selectedGame,
+    authorizedFeedUrl: conn.authorizedFeedUrl,
+    authToken: token,
+    connectionId: conn.id,
+  });
+
+  const now = new Date().toISOString();
+  const nextStatus: ConnectionRealStatus =
+    result.httpStatus === 401 || result.httpStatus === 403
+      ? 'Expired'
+      : result.connectionStatus;
+
+  if (result.minesRounds.length > 0) {
+    const existingIds = new Set(
+      db.syncedMinesRounds
+        .filter((r) => r.workspaceOwnerId === workspaceId)
+        .map((r) => r.id)
+    );
+    const additions = result.minesRounds
+      .filter((r) => !existingIds.has(r.id))
+      .map((r) => ({ ...r, workspaceOwnerId: workspaceId }));
+    db.syncedMinesRounds = [...additions, ...db.syncedMinesRounds].slice(
+      0,
+      1000
+    );
+  }
+
+  if (result.aviatorRounds.length > 0) {
+    const existingIds = new Set(
+      db.syncedAviatorRounds
+        .filter((r) => r.workspaceOwnerId === workspaceId)
+        .map((r) => r.id)
+    );
+    const additions = result.aviatorRounds
+      .filter((r) => !existingIds.has(r.id))
+      .map((r) => ({ ...r, workspaceOwnerId: workspaceId }));
+    db.syncedAviatorRounds = [...additions, ...db.syncedAviatorRounds].slice(
+      0,
+      1500
+    );
+  }
+
+  const totalSyncedForConn =
+    db.syncedMinesRounds.filter(
+      (r) => r.workspaceOwnerId === workspaceId && r.connectionId === conn.id
+    ).length +
+    db.syncedAviatorRounds.filter(
+      (r) => r.workspaceOwnerId === workspaceId && r.connectionId === conn.id
+    ).length;
+
+  db.platformConnections[idx] = {
+    ...conn,
+    connectionStatus: nextStatus,
+    statusMessage: result.statusMessage,
+    lastSyncAt: result.connected ? now : conn.lastSyncAt,
+    syncedRoundsCount: totalSyncedForConn,
+    updatedAt: now,
+  };
+  writeDb(db);
+
+  res.json({
+    connected: result.connected,
+    connection: sanitizeConnectionForClient(db.platformConnections[idx]),
+    steps: result.steps,
+    statusMessage: result.statusMessage,
+  });
+});
+
+app.post('/api/platforms/connections/:id/reconnect', async (req, res) => {
+  const workspaceId = getOrCreateWorkspaceSession(req, res);
+  const body = (req.body || {}) as {
+    authToken?: string;
+    authorizedFeedUrl?: string;
+  };
+  const db = readDb();
+  const idx = db.platformConnections.findIndex(
+    (c) => c.id === req.params.id && c.workspaceOwnerId === workspaceId
+  );
+  if (idx === -1) {
+    res.status(404).json({ error: 'Connection not found in your workspace.' });
+    return;
+  }
+
+  const conn = db.platformConnections[idx];
+  const platform = db.platforms.find((p) => p.id === conn.platformId);
+  if (!platform) {
+    res.status(404).json({ error: 'Platform entry missing.' });
+    return;
+  }
+
+  const nextToken = body.authToken?.trim()
+    ? body.authToken.trim()
+    : conn.encryptedAuthToken
+      ? decryptToken(conn.encryptedAuthToken)
+      : null;
+  const nextFeedUrl = body.authorizedFeedUrl?.trim()
+    ? body.authorizedFeedUrl.trim()
+    : conn.authorizedFeedUrl;
+
+  const result = await executePlatformAdapterConnect({
+    platform,
+    websiteUrl: conn.websiteUrl,
+    selectedGame: conn.selectedGame,
+    authorizedFeedUrl: nextFeedUrl,
+    authToken: nextToken,
+    connectionId: conn.id,
+  });
+
+  const now = new Date().toISOString();
+  db.platformConnections[idx] = {
+    ...conn,
+    authorizedFeedUrl: nextFeedUrl,
+    encryptedAuthToken: nextToken ? encryptToken(nextToken) : null,
+    hasAuthToken: Boolean(nextToken),
+    connectionStatus: result.connectionStatus,
+    statusMessage: result.statusMessage,
+    lastSyncAt: result.connected ? now : conn.lastSyncAt,
+    updatedAt: now,
+  };
+  writeDb(db);
+
+  res.json({
+    connected: result.connected,
+    connection: sanitizeConnectionForClient(db.platformConnections[idx]),
+    steps: result.steps,
+    statusMessage: result.statusMessage,
+  });
+});
+
+app.post('/api/platforms/connections/:id/disconnect', (req, res) => {
+  const workspaceId = getOrCreateWorkspaceSession(req, res);
+  const db = readDb();
+  const idx = db.platformConnections.findIndex(
+    (c) => c.id === req.params.id && c.workspaceOwnerId === workspaceId
+  );
+  if (idx === -1) {
+    res.status(404).json({ error: 'Connection not found in your workspace.' });
+    return;
+  }
+  db.platformConnections[idx] = {
+    ...db.platformConnections[idx],
+    connectionStatus: 'Disconnected',
+    statusMessage: 'Disconnected by user.',
+    updatedAt: new Date().toISOString(),
+  };
+  writeDb(db);
+  res.json({
+    connection: sanitizeConnectionForClient(db.platformConnections[idx]),
+  });
+});
+
+app.delete('/api/platforms/connections/:id', (req, res) => {
+  const workspaceId = getOrCreateWorkspaceSession(req, res);
+  const db = readDb();
+  const target = db.platformConnections.find(
+    (c) => c.id === req.params.id && c.workspaceOwnerId === workspaceId
+  );
+  if (!target) {
+    res.status(404).json({ error: 'Connection not found in your workspace.' });
+    return;
+  }
+  db.platformConnections = db.platformConnections.filter(
+    (c) => !(c.id === req.params.id && c.workspaceOwnerId === workspaceId)
+  );
+  db.syncedMinesRounds = db.syncedMinesRounds.filter(
+    (r) => !(r.connectionId === req.params.id && r.workspaceOwnerId === workspaceId)
+  );
+  db.syncedAviatorRounds = db.syncedAviatorRounds.filter(
+    (r) => !(r.connectionId === req.params.id && r.workspaceOwnerId === workspaceId)
+  );
+  writeDb(db);
+  appendLog('info', 'platform_deleted', `Removed private connection ${target.platformName}.`);
+  res.json({ deleted: true });
+});
+
+/* ---------------- Admin Platform Management (ADMIN_ACCESS_KEY Protected) ---------------- */
+
+app.get('/api/admin/platforms', (req, res) => {
+  if (!verifyAdminKey(req, res)) return;
+  const db = readDb();
+  const syncErrors = db.activityLogs.filter(
+    (l) =>
+      l.category === 'platform_connect' ||
+      l.category === 'platform_health' ||
+      l.level === 'error'
+  );
+  res.json({
+    platforms: db.platforms,
+    syncErrors: syncErrors.slice(0, 40),
+  });
+});
+
+app.post('/api/admin/platforms', (req, res) => {
+  if (!verifyAdminKey(req, res)) return;
+  const body = req.body as Partial<PlatformDirectoryEntry>;
+  const name = String(body.name || '').trim();
+  if (!name) {
+    res.status(400).json({ error: 'Platform name is required.' });
+    return;
+  }
+
+  const slug = name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+  const db = readDb();
+  const id = db.platforms.some((p) => p.id === slug)
+    ? `${slug}-${Date.now().toString(36)}`
+    : slug || `plat-${Date.now().toString(36)}`;
+
+  const entry: PlatformDirectoryEntry = {
+    id,
+    name,
+    shortCode: (body.shortCode || name.slice(0, 2)).toUpperCase().slice(0, 3),
+    brandColor: body.brandColor || '#00D98B',
+    officialWebsite: body.officialWebsite?.trim() || null,
+    allowedDomains: Array.isArray(body.allowedDomains)
+      ? body.allowedDomains.map((d) => String(d).trim()).filter(Boolean)
+      : [],
+    bclbStatus: body.bclbStatus || 'Pending Verification',
+    licenseNumber: String(body.licenseNumber || '').trim(),
+    availabilityStatus: body.availabilityStatus || 'Active Candidate',
+    minesCompatibility: body.minesCompatibility || 'Under verification',
+    aviatorCompatibility: body.aviatorCompatibility || 'Under verification',
+    adapterId: body.adapterId || `${id}-adapter`,
+    adapterType: body.adapterType || 'none',
+    feedEndpoint: body.feedEndpoint?.trim() || null,
+    enabled: body.enabled ?? true,
+    healthStatus: body.feedEndpoint ? 'Not Configured' : 'Not Configured',
+    lastHealthCheckAt: null,
+    notes: String(body.notes || '').trim(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  db.platforms = [...db.platforms, entry];
+  writeDb(db);
+  appendLog('info', 'admin_platform_add', `Added platform directory entry ${entry.name}.`);
+  res.status(201).json({ platform: entry });
+});
+
+app.put('/api/admin/platforms/:id', (req, res) => {
+  if (!verifyAdminKey(req, res)) return;
+  const body = req.body as Partial<PlatformDirectoryEntry>;
+  const db = readDb();
+  const idx = db.platforms.findIndex((p) => p.id === req.params.id);
+  if (idx === -1) {
+    res.status(404).json({ error: 'Platform entry not found.' });
+    return;
+  }
+
+  const current = db.platforms[idx];
+  if (body.feedEndpoint && body.feedEndpoint.trim()) {
+    const check = validateExternalHttpsUrl(body.feedEndpoint.trim());
+    if (!check.valid) {
+      res.status(400).json({ error: check.reason || 'Invalid feed endpoint URL.' });
+      return;
+    }
+  }
+
+  const updated: PlatformDirectoryEntry = {
+    ...current,
+    name: body.name !== undefined ? String(body.name).trim() || current.name : current.name,
+    shortCode:
+      body.shortCode !== undefined
+        ? String(body.shortCode).toUpperCase().slice(0, 3) || current.shortCode
+        : current.shortCode,
+    brandColor: body.brandColor ?? current.brandColor,
+    officialWebsite:
+      body.officialWebsite !== undefined
+        ? body.officialWebsite?.trim() || null
+        : current.officialWebsite,
+    allowedDomains: Array.isArray(body.allowedDomains)
+      ? body.allowedDomains.map((d) => String(d).trim()).filter(Boolean)
+      : current.allowedDomains,
+    bclbStatus: body.bclbStatus ?? current.bclbStatus,
+    licenseNumber:
+      body.licenseNumber !== undefined
+        ? String(body.licenseNumber).trim()
+        : current.licenseNumber,
+    availabilityStatus: body.availabilityStatus ?? current.availabilityStatus,
+    minesCompatibility: body.minesCompatibility ?? current.minesCompatibility,
+    aviatorCompatibility: body.aviatorCompatibility ?? current.aviatorCompatibility,
+    adapterId: body.adapterId ?? current.adapterId,
+    adapterType: body.adapterType ?? current.adapterType,
+    feedEndpoint:
+      body.feedEndpoint !== undefined
+        ? body.feedEndpoint?.trim() || null
+        : current.feedEndpoint,
+    enabled: typeof body.enabled === 'boolean' ? body.enabled : current.enabled,
+    healthStatus:
+      body.enabled === false
+        ? 'Disabled'
+        : body.healthStatus ?? current.healthStatus,
+    notes: body.notes !== undefined ? String(body.notes).trim() : current.notes,
+    updatedAt: new Date().toISOString(),
+  };
+
+  db.platforms[idx] = updated;
+  writeDb(db);
+  appendLog('info', 'admin_platform_edit', `Updated platform ${updated.name}.`);
+  res.json({ platform: updated });
+});
+
+app.delete('/api/admin/platforms/:id', (req, res) => {
+  if (!verifyAdminKey(req, res)) return;
+  const db = readDb();
+  const target = db.platforms.find((p) => p.id === req.params.id);
+  if (!target) {
+    res.status(404).json({ error: 'Platform not found.' });
+    return;
+  }
+  db.platforms = db.platforms.filter((p) => p.id !== req.params.id);
+  writeDb(db);
+  appendLog('info', 'admin_platform_delete', `Removed directory entry ${target.name}.`);
+  res.json({ deleted: true });
+});
+
+app.post('/api/admin/platforms/:id/health-check', async (req, res) => {
+  if (!verifyAdminKey(req, res)) return;
+  const db = readDb();
+  const idx = db.platforms.findIndex((p) => p.id === req.params.id);
+  if (idx === -1) {
+    res.status(404).json({ error: 'Platform not found.' });
+    return;
+  }
+  const check = await runPlatformHealthCheck(db.platforms[idx]);
+  db.platforms[idx] = {
+    ...db.platforms[idx],
+    healthStatus: check.healthStatus,
+    lastHealthCheckAt: new Date().toISOString(),
+  };
+  writeDb(db);
+  appendLog(
+    check.healthStatus === 'Degraded' ? 'warn' : 'info',
+    'platform_health',
+    `${db.platforms[idx].name} health: ${check.healthStatus} (${check.detail})`
+  );
+  res.json({ platform: db.platforms[idx], detail: check.detail });
 });
 
 async function startServer() {
@@ -773,7 +1363,7 @@ async function startServer() {
   }
 
   app.listen(port, '0.0.0.0', () => {
-    console.log(`Universal Mines AI server listening on http://0.0.0.0:${port}`);
+    console.log(`Mines Bot server listening on http://0.0.0.0:${port}`);
   });
 }
 

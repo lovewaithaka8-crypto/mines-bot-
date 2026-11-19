@@ -1,7 +1,7 @@
 import type {
-  PlatformIntegrationConfig,
   RiskLevel,
   SignalRecord,
+  SyncedMinesRound,
   UserSettings,
 } from '../types/mines.ts';
 import {
@@ -13,19 +13,22 @@ import {
 import {
   computeEmpiricalTileMatrix,
   computePerformanceMetrics,
+  formatWindowLabel,
   sliceRoundsForWindow,
 } from './performanceTrackingModule.ts';
 import { fetchJsonWithOptimization } from '../services/networkClient.ts';
 import { performanceMonitor } from '../services/performanceMonitor.ts';
 
 /**
- * Computes statistical recommendations (GREEN) and uncertainty warnings (ORANGE).
- * Never labels any unrevealed tile as a confirmed mine (RED is reserved strictly for revealed mines).
+ * Computes statistical recommendations (GREEN) and uncertainty warnings (AMBER).
+ * Clearly separates observed historical frequency from estimated future probability
+ * and never claims guaranteed outcomes on independent random rounds.
  */
 export function generateStatisticalCandidates(
   trapsCount: number,
   recommendedCount: number,
   historyWindow: SignalRecord[],
+  windowLabel = 'Previous 7 Hours',
   seedOffset = 0
 ): {
   recommendedIndices: number[];
@@ -98,7 +101,6 @@ export function generateStatisticalCandidates(
     .slice(0, picks)
     .map((t) => t.index);
 
-  // Lower-ranked tiles are marked ORANGE (uncertain selection warning), never confirmed mines
   const remaining = sortedBestFirst.slice(picks);
   const uncertainCount = Math.min(
     Math.max(2, Math.min(traps, remaining.length)),
@@ -116,15 +118,15 @@ export function generateStatisticalCandidates(
 
   const summary =
     evaluatedRounds === 0
-      ? `Analysed 25-tile grid for ${traps} ${traps === 1 ? 'trap' : 'traps'} (${baseSingleSafe}% single-tile safety, ${jointSurvival}% joint path odds). No evaluated rounds recorded yet; recommendations use exact combinatorics and dispersion balancing.`
-      : `Evaluated ${evaluatedRounds} historical rounds alongside combinatorics (${baseSingleSafe}% single-tile safety, ${jointSurvival}% path survival). Hidden traps remain memoryless and unknown until legitimately revealed.`;
+      ? `Analysed 25-cell grid for ${traps} ${traps === 1 ? 'mine' : 'mines'} (${baseSingleSafe}% single-cell safety, ${jointSurvival}% joint path odds). 0 verified rounds found in ${windowLabel}; estimate relies on exact combinatorics.`
+      : `Compared ${evaluatedRounds} verified rounds in ${windowLabel} against theoretical combinatorics (${baseSingleSafe}% baseline safety, ${jointSurvival}% ${picks}-step survival). Past frequency does not alter independent future RNG.`;
 
   const riskNote =
     riskLevel === 'LOW RISK'
-      ? `Path survival probability is ${jointSurvival}%. Green tiles indicate lower statistical variance; orange tiles carry elevated uncertainty.`
+      ? `Estimated ${picks}-step clearance probability is ${jointSurvival}%. Statistical estimates cannot guarantee future random outcomes.`
       : riskLevel === 'MEDIUM RISK'
-        ? `Moderate exposure (${jointSurvival}% joint survival across ${picks} steps). Orange tiles carry elevated uncertainty.`
-        : `High variance (${jointSurvival}% joint clearance against ${traps} traps). Treat recommended tiles as probabilistic guidance only.`;
+        ? `Moderate exposure (${jointSurvival}% joint survival across ${picks} picks). Treat highlighted cells as probabilistic estimates only.`
+        : `High variance (${jointSurvival}% joint survival against ${traps} mines). Independent random rounds carry substantial risk of hitting a mine.`;
 
   return {
     recommendedIndices,
@@ -138,34 +140,59 @@ export function generateStatisticalCandidates(
   };
 }
 
-export function generateSignalId(
-  platform: 'bgr8' | 'onewin',
-  existingCount: number
-): string {
-  const prefix = platform === 'onewin' ? '1W' : 'B8';
+export function generatePredictionId(existingCount: number): string {
   const datePart = new Date().toISOString().slice(2, 10).replace(/-/g, '');
   const seq = String(existingCount + 1).padStart(3, '0');
   const rand = Math.random().toString(36).slice(2, 4).toUpperCase();
-  return `${prefix}-${datePart}-${seq}${rand}`;
+  return `MB-${datePart}-${seq}${rand}`;
 }
 
-export async function generatePlatformSignalAsync(params: {
+export async function generateMinesSignalAsync(params: {
+  trapsCount: number;
   settings: UserSettings;
-  platformConfig: PlatformIntegrationConfig;
   allSignals: SignalRecord[];
+  syncedMinesRounds?: SyncedMinesRound[];
   seedOffset: number;
   abortSignal: AbortSignal;
 }): Promise<SignalRecord> {
-  const { settings, platformConfig, allSignals, seedOffset, abortSignal } =
-    params;
-  const platform = settings.selectedPlatform;
-  const trapsCount = settings.trapsByPlatform[platform];
+  const {
+    trapsCount,
+    settings,
+    allSignals,
+    syncedMinesRounds = [],
+    seedOffset,
+    abortSignal,
+  } = params;
+  const windowSignals = sliceRoundsForWindow(allSignals, settings.analysisWindow);
+  const windowLabel = formatWindowLabel(settings.analysisWindow);
 
-  const platformSignals = allSignals.filter((s) => s.platform === platform);
-  const windowSignals = sliceRoundsForWindow(
-    platformSignals,
-    settings.roundsToAnalyse
-  );
+  // Convert verified synced external platform Mines rounds into read-only empirical window observations
+  const syncedAsObservations: SignalRecord[] = syncedMinesRounds.map((r) => ({
+    id: r.id,
+    timestamp: r.timestamp,
+    trapsCount: r.minesCount,
+    recommendedCount: 1,
+    roundsAnalysedCount: 1,
+    windowLabel,
+    recommendedIndices: [],
+    uncertainIndices: [],
+    safePath: [],
+    tileConfidenceMap: {},
+    theoreticalSingleSafePct: 0,
+    theoreticalJointSurvivalPct: 0,
+    riskLevel: 'MEDIUM RISK',
+    status: r.revealedMineIndices.length > 0 ? 'Evaluated: Mine Revealed' : 'Evaluated: Safe',
+    revealedSafeIndices: r.revealedSafeIndices,
+    revealedMineIndices: r.revealedMineIndices,
+    engineMode: settings.analysisEngineMode,
+    aiSummary: '',
+    riskNote: '',
+  }));
+
+  const combinedEmpiricalWindow =
+    syncedAsObservations.length > 0
+      ? [...windowSignals, ...syncedAsObservations]
+      : windowSignals;
 
   const totalStart =
     typeof performance !== 'undefined' ? performance.now() : Date.now();
@@ -174,7 +201,8 @@ export async function generatePlatformSignalAsync(params: {
   const baseline = generateStatisticalCandidates(
     trapsCount,
     settings.recommendedCount,
-    windowSignals,
+    combinedEmpiricalWindow,
+    windowLabel,
     seedOffset
   );
 
@@ -189,7 +217,9 @@ export async function generatePlatformSignalAsync(params: {
 
   if (settings.analysisEngineMode === 'ai_assisted') {
     const metrics = computePerformanceMetrics(windowSignals);
-    const empiricalHighlights = computeEmpiricalTileMatrix(windowSignals)
+    const empiricalHighlights = computeEmpiricalTileMatrix(
+      combinedEmpiricalWindow
+    )
       .filter((t) => t.observedSafeCount > 0 || t.observedMineCount > 0)
       .map((t) => ({
         coord: t.coord,
@@ -211,10 +241,10 @@ export async function generatePlatformSignalAsync(params: {
       retries: 1,
       retryDelayMs: 300,
       body: JSON.stringify({
-        platform,
         trapsCount,
         recommendedCount: settings.recommendedCount,
-        roundsAnalysedCount: windowSignals.length,
+        roundsAnalysedCount: combinedEmpiricalWindow.length,
+        windowLabel,
         theoreticalSingleSafePct: baseline.theoreticalSingleSafePct,
         theoreticalJointSurvivalPct: baseline.theoreticalJointSurvivalPct,
         riskLevel: baseline.riskLevel,
@@ -223,7 +253,6 @@ export async function generatePlatformSignalAsync(params: {
         candidateSafeIndices: baseline.recommendedIndices,
         candidateUncertainIndices: baseline.uncertainIndices,
         empiricalHighlights,
-        sourceMode: platformConfig.integrationMode,
       }),
     });
 
@@ -258,12 +287,12 @@ export async function generatePlatformSignalAsync(params: {
   performanceMonitor.recordSignalGeneration(totalMs, mathMs);
 
   return {
-    id: generateSignalId(platform, allSignals.length),
-    platform,
+    id: generatePredictionId(allSignals.length),
     timestamp: new Date().toISOString(),
     trapsCount,
     recommendedCount: settings.recommendedCount,
-    roundsAnalysedCount: windowSignals.length,
+    roundsAnalysedCount: combinedEmpiricalWindow.length,
+    windowLabel,
     recommendedIndices: finalRecommended,
     uncertainIndices: finalUncertain,
     safePath,
@@ -277,7 +306,5 @@ export async function generatePlatformSignalAsync(params: {
     engineMode: settings.analysisEngineMode,
     aiSummary: finalSummary,
     riskNote: finalRiskNote,
-    sourceMode: platformConfig.integrationMode,
-    roundRef: platformConfig.currentRoundId,
   };
 }
