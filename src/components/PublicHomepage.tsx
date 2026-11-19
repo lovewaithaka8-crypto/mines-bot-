@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import {
   ArrowRight,
+  Search,
+  Plane,
+  Gamepad2,
   BarChart3,
   CheckCircle2,
   Cpu,
@@ -130,6 +133,37 @@ export function PublicHomepage({
     text?: string;
   }>({ type: 'idle' });
   const [legalModal, setLegalModal] = useState<LegalTopic>(null);
+  const [siteSearch, setSiteSearch] = useState('');
+  const [selectedSite, setSelectedSite] = useState('');
+  const [selectedGame, setSelectedGame] = useState<'mines' | 'aviator' | ''>('');
+  const [selectionNotice, setSelectionNotice] = useState('');
+
+  const bettingSites = [
+    'Betika', 'SportPesa', 'Odibets', 'Mozzart Bet', 'Betway', '1xBet',
+    '22Bet', 'Betgr8', 'Melbet', 'Bangbet', 'KE7', 'Betnare', 'Pepeta',
+    'betPawa', 'SportyBet', 'Shabiki', 'WinPesa', 'KwikBet', '1win', 'BetWinner',
+  ];
+  const filteredSites = bettingSites.filter((site) =>
+    site.toLowerCase().includes(siteSearch.trim().toLowerCase())
+  );
+  function continueSelection() {
+    setSelectionNotice('');
+    if (!selectedSite || !selectedGame) {
+      setSelectionNotice('Select a betting site and a game to continue.');
+      return;
+    }
+    if (selectedGame === 'aviator') {
+      setSelectionNotice('Aviator is selected. The current workspace supports Mines analysis only; Aviator prediction tools are not yet implemented.');
+      return;
+    }
+    if (selectedSite.toLowerCase() === 'betgr8' || selectedSite.toLowerCase() === 'bgr8') {
+      onOpenWorkspace('bgr8');
+    } else if (selectedSite.toLowerCase() === '1win') {
+      onOpenWorkspace('onewin');
+    } else {
+      onOpenWorkspace('analyzer');
+    }
+  }
 
   async function handleSubmitContact(e: React.FormEvent) {
     e.preventDefault();
@@ -213,10 +247,10 @@ export function PublicHomepage({
           <div className="flex items-center shrink-0">
             <button
               type="button"
-              onClick={() => onOpenWorkspace('analyzer')}
+              onClick={() => document.getElementById('platform-selector')?.scrollIntoView({ behavior: 'smooth' })}
               className="px-4 py-2 rounded-xl bg-[#087AFF] hover:bg-blue-500 text-[#F3F7FF] text-xs sm:text-sm font-semibold transition-colors whitespace-nowrap shrink-0 shadow-md shadow-blue-950/40"
             >
-              Open Analyzer
+              Choose Platform
             </button>
           </div>
         </div>
@@ -255,10 +289,10 @@ export function PublicHomepage({
               <div className="flex flex-wrap items-center gap-3 pt-2">
                 <button
                   type="button"
-                  onClick={() => onOpenWorkspace('analyzer')}
+                  onClick={() => document.getElementById('platform-selector')?.scrollIntoView({ behavior: 'smooth' })}
                   className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-[#087AFF] hover:bg-blue-500 text-[#F3F7FF] text-sm font-semibold transition-colors shadow-lg shadow-blue-950/40"
                 >
-                  <span>Open Mines Analyzer</span>
+                  <span>Choose Site & Game</span>
                   <ArrowRight className="w-4 h-4" aria-hidden="true" />
                 </button>
                 <a
@@ -328,6 +362,68 @@ export function PublicHomepage({
                   </button>
                 </div>
               </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Site Search and Game Selection Flow */}
+        <section
+          id="platform-selector"
+          className="mx-auto max-w-[1440px] px-4 sm:px-6 lg:px-8 py-12 sm:py-16 border-b border-[#32C5E8]/10"
+        >
+          <div className="max-w-3xl mx-auto">
+            <div className="text-center mb-8">
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#32C5E8]">Start Here</p>
+              <h2 className="font-display text-2xl sm:text-3xl font-extrabold mt-2">Choose Your Betting Site</h2>
+              <p className="text-sm text-[#9BB2D8] mt-2">Search your platform, select a game, then continue to its workspace.</p>
+            </div>
+            <div className="surface-panel rounded-2xl border border-[#32C5E8]/20 p-4 sm:p-6 flex flex-col gap-5">
+              <label className="flex items-center gap-3 rounded-xl border border-[#32C5E8]/25 bg-[#080F20] px-4 py-3">
+                <Search className="w-4 h-4 text-[#32C5E8]" aria-hidden="true" />
+                <input
+                  type="search"
+                  value={siteSearch}
+                  onChange={(e) => setSiteSearch(e.target.value)}
+                  placeholder="Search betting site name..."
+                  aria-label="Search betting site"
+                  className="w-full bg-transparent outline-none text-sm text-[#F3F7FF] placeholder:text-[#7084A7]"
+                />
+              </label>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
+                {filteredSites.map((site) => (
+                  <button
+                    key={site}
+                    type="button"
+                    onClick={() => { setSelectedSite(site); setSelectionNotice(''); }}
+                    className={`rounded-xl border px-3 py-3 text-sm font-semibold text-left transition-all ${selectedSite === site ? 'border-[#16A765] bg-[#16A765]/15 text-emerald-200 ring-1 ring-[#16A765]/40' : 'border-[#32C5E8]/15 bg-[#10182B] text-[#C6D5EE] hover:border-[#32C5E8]/50'}`}
+                  >
+                    {site}
+                  </button>
+                ))}
+                {filteredSites.length === 0 && (
+                  <p className="col-span-full text-center text-sm text-[#9BB2D8] py-5">No matching site found. Try a different name.</p>
+                )}
+              </div>
+              <div className="border-t border-[#32C5E8]/15 pt-5">
+                <h3 className="text-sm font-bold mb-3">Choose Game</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <button type="button" onClick={() => { setSelectedGame('aviator'); setSelectionNotice(''); }}
+                    className={`rounded-xl border p-4 text-left flex items-center gap-3 transition-all ${selectedGame === 'aviator' ? 'border-[#16A765] bg-[#16A765]/10' : 'border-[#32C5E8]/20 bg-[#10182B] hover:border-[#32C5E8]/50'}`}>
+                    <div className="w-11 h-11 rounded-xl bg-red-500/15 flex items-center justify-center"><Plane className="w-5 h-5 text-red-300" /></div>
+                    <div><span className="font-bold text-sm">Aviator</span><p className="text-xs text-[#9BB2D8] mt-1">Crash game analysis</p></div>
+                  </button>
+                  <button type="button" onClick={() => { setSelectedGame('mines'); setSelectionNotice(''); }}
+                    className={`rounded-xl border p-4 text-left flex items-center gap-3 transition-all ${selectedGame === 'mines' ? 'border-[#16A765] bg-[#16A765]/10' : 'border-[#32C5E8]/20 bg-[#10182B] hover:border-[#32C5E8]/50'}`}>
+                    <div className="w-11 h-11 rounded-xl bg-[#16A765]/15 flex items-center justify-center"><Gamepad2 className="w-5 h-5 text-[#5FE3A0]" /></div>
+                    <div><span className="font-bold text-sm">Mines</span><p className="text-xs text-[#9BB2D8] mt-1">5 × 5 mines analyzer</p></div>
+                  </button>
+                </div>
+              </div>
+              {selectionNotice && <p role="status" className="rounded-xl border border-orange-400/30 bg-orange-500/10 px-4 py-3 text-sm text-orange-200">{selectionNotice}</p>}
+              <button type="button" onClick={continueSelection}
+                className="w-full sm:w-auto sm:self-end inline-flex items-center justify-center gap-2 rounded-xl bg-[#087AFF] hover:bg-blue-500 px-5 py-3 text-sm font-bold text-white transition-colors">
+                Continue <ArrowRight className="w-4 h-4" />
+              </button>
             </div>
           </div>
         </section>
