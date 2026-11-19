@@ -70,97 +70,26 @@ export function OverviewView({
 
   return (
     <div className="flex flex-col gap-6">
-      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="surface-card rounded-2xl border border-[#32C5E8]/20 p-5">
-          <div className="text-xs text-[#9BB2D8]">Total Stored Signals</div>
-          <div className="mt-1.5 text-2xl font-bold text-[#F3F7FF] tabular-nums">
-            {metrics.totalSignals}
-          </div>
-          <div className="mt-1 text-xs text-[#9BB2D8] tabular-nums">
-            {metrics.evaluatedRounds} evaluated · {metrics.pendingRounds} active
-          </div>
+      <section className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="surface-card rounded-2xl border border-[#00FF88]/20 p-5">
+          <div className="text-xs text-[#9BB2D8]">Recorded Signals</div>
+          <div className="mt-1.5 text-2xl font-bold text-[#F3F7FF] tabular-nums">{metrics.totalSignals}</div>
+          <div className="mt-1 text-xs text-[#9BB2D8] tabular-nums">{metrics.evaluatedRounds} evaluated · {metrics.pendingRounds} active</div>
         </div>
-
-        <div className="surface-card rounded-2xl border border-[#32C5E8]/20 p-5">
-          <div className="text-xs text-[#9BB2D8]">Measured Performance</div>
-          <div className="mt-1.5 text-2xl font-bold text-[#32C5E8] tabular-nums">
-            {metrics.measuredSafeRatePct === null
-              ? '—'
-              : `${metrics.measuredSafeRatePct}%`}
-          </div>
-          <div className="mt-1 text-xs text-[#9BB2D8]">
-            {metrics.totalEvaluatedPicks === 0
-              ? 'No verified outcomes recorded yet'
-              : `${metrics.correctRecommendations} safe / ${metrics.incorrectRecommendations} mine`}
-          </div>
-        </div>
-
-        <div className="surface-card rounded-2xl border border-[#32C5E8]/20 p-5">
-          <div className="text-xs text-[#9BB2D8]">BGR8 Integration</div>
-          <div className="mt-1.5 text-base font-bold text-[#F3F7FF]">
-            {platformConfigs.bgr8.connectionStatus === 'verified'
-              ? 'Endpoint Verified'
-              : platformConfigs.bgr8.connectionStatus === 'unreachable'
-                ? 'Unreachable'
-                : 'Configuration Required'}
-          </div>
-          <button
-            type="button"
-            onClick={() => onNavigate('bgr8')}
-            className="mt-2 text-xs text-[#32C5E8] font-semibold hover:underline"
-          >
-            Configure BGR8 →
-          </button>
-        </div>
-
-        <div className="surface-card rounded-2xl border border-[#32C5E8]/20 p-5">
-          <div className="text-xs text-[#9BB2D8]">1win Integration</div>
-          <div className="mt-1.5 text-base font-bold text-[#F3F7FF]">
-            {platformConfigs.onewin.connectionStatus === 'verified'
-              ? 'Endpoint Verified'
-              : platformConfigs.onewin.connectionStatus === 'unreachable'
-                ? 'Unreachable'
-                : 'Configuration Required'}
-          </div>
-          <button
-            type="button"
-            onClick={() => onNavigate('onewin')}
-            className="mt-2 text-xs text-[#32C5E8] font-semibold hover:underline"
-          >
-            Configure 1win →
-          </button>
+        <div className="surface-card rounded-2xl border border-[#8B5CF6]/25 p-5">
+          <div className="text-xs text-[#9BB2D8]">Measured Outcomes</div>
+          <div className="mt-1.5 text-2xl font-bold text-[#00FF88] tabular-nums">{metrics.measuredSafeRatePct === null ? '—' : `${metrics.measuredSafeRatePct}%`}</div>
+          <div className="mt-1 text-xs text-[#9BB2D8]">{metrics.totalEvaluatedPicks === 0 ? 'No verified outcomes recorded yet' : `${metrics.correctRecommendations} safe / ${metrics.incorrectRecommendations} mine`}</div>
         </div>
       </section>
-
-      <section className="surface-panel rounded-2xl border border-[#32C5E8]/20 p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <section className="surface-panel rounded-2xl border border-[#00FF88]/20 p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-base font-bold text-[#F3F7FF]">
-            Active Workspace Platform:{' '}
-            <span className="text-[#32C5E8]">
-              {selectedPlatform === 'onewin' ? '1win Mines' : 'BGR8 Mines'}
-            </span>
-          </h2>
-          <p className="text-xs sm:text-sm text-[#9BB2D8] mt-1">
-            Open the interactive 5 × 5 Mines Analyzer to configure traps, generate signals, and record verified round outcomes.
-          </p>
+          <h2 className="text-base font-bold text-[#F3F7FF]">Mines Analyzer <span className="text-[#00FF88]">Ready</span></h2>
+          <p className="text-xs sm:text-sm text-[#9BB2D8] mt-1">Analyze a 5 × 5 board, configure traps, and record outcomes to review your history.</p>
         </div>
-
         <div className="flex flex-wrap gap-3 shrink-0">
-          <button
-            type="button"
-            onClick={() => onNavigate('analyzer')}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#087AFF] hover:bg-blue-500 text-white text-xs font-semibold"
-          >
-            <span>Open Mines Analyzer</span>
-            <ArrowRight className="w-4 h-4" aria-hidden="true" />
-          </button>
-          <button
-            type="button"
-            onClick={() => onNavigate('generate')}
-            className="px-4 py-2.5 rounded-xl border border-[#32C5E8]/35 text-[#F3F7FF] text-xs font-semibold hover:border-[#32C5E8]"
-          >
-            Generate Signals
-          </button>
+          <button type="button" onClick={() => onNavigate('analyzer')} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#00FF88] hover:bg-emerald-400 text-[#06101D] text-xs font-semibold"><span>Open Mines Analyzer</span><ArrowRight className="w-4 h-4" aria-hidden="true" /></button>
+          <button type="button" onClick={() => onNavigate('history')} className="px-4 py-2.5 rounded-xl border border-[#8B5CF6]/35 text-[#F3F7FF] text-xs font-semibold hover:border-[#00FF88]">Round History</button>
         </div>
       </section>
     </div>
